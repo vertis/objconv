@@ -394,7 +394,7 @@ void CELF2COF<ELFSTRUCTURES>::MakeSymbolTable() {
    uint32 symtabsize;                  // Size of old symbol table
    uint32 stringtabsize;               // Size of old string table
    int8 * symtabend;                   // End of old symbol table
-   int entrysize;                      // Size of each entry in old symbol table
+   uint32 entrysize;                   // Size of each entry in old symbol table
    uint32 OldSymI;                     // Symbol index in old symbol table
    uint32 NewSymI = 0;                 // Symbol index in new symbol table
    const char * symname = 0;           // Symbol name

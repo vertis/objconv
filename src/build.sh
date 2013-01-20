@@ -1,4 +1,4 @@
-#!/usr/local/bin/bash
+#!/bin/bash
 
 # Build script for building objconv on Linux, BSD and Mac OS X platforms.
 

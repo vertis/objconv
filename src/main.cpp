@@ -687,7 +687,7 @@ void CConverter::Go() {
                COF2COF();              // Make symbol changes in COFF file
                if (err.Number()) return;  // Return if error
                COF2OMF();
-               err.submit(1009);       // Warning: Converting to ELF and back again
+               err.submit(1009);       // Warning: Converting to COFF and back again
             }
             break;
 

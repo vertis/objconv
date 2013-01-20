@@ -561,6 +561,13 @@ void MacSymbolTableBuilder<TMAC_nlist, MInt>::AddSymbol(int OldIndex, const char
    // Add symbol to list
    MacSymbolRecord<TMAC_nlist> rec;
    memset(&rec, 0, sizeof(rec));                 // Set to zero
+/* !!
+   if (GetNumEntries() == 0) {
+      // First record must indicate empty string
+      rec.Name = StringBuffer.PushString("");    // Empty string
+      Push(&rec, sizeof(rec));                   // Put empty record in memory buffer
+   }
+*/
    rec.n_type = (uint8)type;                     // Copy values
    rec.n_sect = (uint8)section;
    rec.n_desc = (int16)Desc;

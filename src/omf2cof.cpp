@@ -386,7 +386,7 @@ void COMF2COF::MakeSymbolTable5() {
                if (FixData.s.T == 0) {
                   // Target specified
                   Target = Records[i].GetIndex();
-                  uint32 TargetMethod = FixData.s.Target + FixData.s.P * 4;
+                  //uint32 TargetMethod = FixData.s.Target + FixData.s.P * 4;
                }
                if (FixData.s.P == 0) {
                   TargetDisplacement = Records[i].GetNumeric();
@@ -634,7 +634,7 @@ void COMF2COF::MakeSections() {
                   if (FixData.s.T == 0) {
                      // Target specified
                      Target = Records[RecNum].GetIndex();
-                     uint32 TargetMethod = FixData.s.Target + FixData.s.P * 4;
+                     //uint32 TargetMethod = FixData.s.Target + FixData.s.P * 4;
                   }
                   else {
                      // Target specified in previous thread

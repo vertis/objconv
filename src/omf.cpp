@@ -467,7 +467,7 @@ void COMF::DumpRelocations() {
 
       if (Records[i].Type2 == OMF_COMDAT) {
          // COMDAT record
-         uint32 Flags = Records[i].GetByte(); // 1 = continuation, 2 = iterated, 4 = local, 8 = data in code segment
+         //uint32 Flags = Records[i].GetByte(); // 1 = continuation, 2 = iterated, 4 = local, 8 = data in code segment
          uint32 Attributes = Records[i].GetByte(); 
          uint32 Base = 0;
          // 0 = explicit, 1 = far code, 2 = far data, 3 = code32, 4 = data32
@@ -756,7 +756,11 @@ const char * COMF::GetSymbolName(uint32 i) {
    if (i < SymbolNameOffset.GetNumEntries()) {
       return NameBuffer.Buf() + SymbolNameOffset[i];
    }
-   return "?";
+   // return "?";
+   // index out of range
+   static char temp[100];
+   sprintf(temp, "Unknown index %i", i);
+   return temp;
 }
 
 const char * COMF::GetGroupName(uint32 i) {

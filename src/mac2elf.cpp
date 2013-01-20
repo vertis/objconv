@@ -79,7 +79,7 @@ void CMAC2ELF<MACSTRUCTURES,ELFSTRUCTURES>::MakeSegments() {
    stabstr     = 4;               // Debug string table section number
 
    // Number of special segments = number of names in SpecialSegmentNames:
-   const int NumSpecialSegments = sizeof(SpecialSegmentNames)/sizeof(SpecialSegmentNames[0]);
+   const uint32 NumSpecialSegments = sizeof(SpecialSegmentNames)/sizeof(SpecialSegmentNames[0]);
 
    // Make first section header string table entry empty
    NewSections[shstrtab].PushString("");
@@ -538,7 +538,7 @@ void CMAC2ELF<MACSTRUCTURES,ELFSTRUCTURES>::MakeRelocationTables(MAC_header_32&)
    uint32 RefSection;    // New section index of reference point
    uint32 RefOffset;     // Section-relative offset of reference point
    int32 * inlinep = 0;  // Pointer to inline addend
-   const int WordSize = sizeof(MInt) * 8;
+   //const int WordSize = sizeof(MInt) * 8;
 
    TELF_SectionHeader * NewRelTableSecHeader;  // Section header for new relocation table
 
@@ -546,7 +546,7 @@ void CMAC2ELF<MACSTRUCTURES,ELFSTRUCTURES>::MakeRelocationTables(MAC_header_32&)
    uint32 NumSymbols = NewSections[symtab].GetNumEntries();
 
    // New symbol table
-   Elf32_Sym * NewSymbolTable = (Elf32_Sym *)(NewSections[symtab].Buf());
+   //Elf32_Sym * NewSymbolTable = (Elf32_Sym *)(NewSections[symtab].Buf());
 
    // Find first section header
    MAC_section_32 * sectp = (MAC_section_32*)(this->Buf() + this->SectionHeaderOffset);
@@ -792,12 +792,12 @@ void CMAC2ELF<MACSTRUCTURES,ELFSTRUCTURES>::MakeRelocationTables(MAC_header_64&)
    uint32 RefSection;    // New section index of reference point
    int64  RefOffset;     // Section-relative offset of reference point
    int64  SectAddr;      // Address of current section
-   const int WordSize = sizeof(MInt) * 8;  // Word size, 32 or 64 bits
+   //const int WordSize = sizeof(MInt) * 8;  // Word size, 32 or 64 bits
 
    TELF_SectionHeader * NewRelTableSecHeader;  // Section header for new relocation table
 
    // Number of symbols
-   uint32 NumSymbols = NewSections[symtab].GetNumEntries();
+   //uint32 NumSymbols = NewSections[symtab].GetNumEntries();
 
    // New symbol table
    Elf64_Sym * NewSymbolTable = (Elf64_Sym *)(NewSections[symtab].Buf());

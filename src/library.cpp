@@ -1,14 +1,14 @@
 /****************************  library.cpp  **********************************
 * Author:        Agner Fog
 * Date created:  2006-08-27
-* Last modified: 2010-06-27
+* Last modified: 2012-08-31
 * Project:       objconv
 * Module:        library.cpp
 * Description:
 * This module contains code for reading, writing and manipulating function
 * libraries (archives) of the UNIX type and OMF type.
 *
-* Copyright 2006-2010 GNU General Public License http://www.gnu.org/licenses
+* Copyright 2006-2012 GNU General Public License http://www.gnu.org/licenses
 *****************************************************************************/
 
 #include "stdafx.h"
@@ -738,9 +738,9 @@ const char * CLibrary::ExtractMemberOMF(CFileBuffer * Destination) {
 
    uint32 RecordEnd;                             // End of OMF record
    SOMFRecordPointer rec;                        // Current OMF record
-   const char * MemberName;                      // Name of library member
-   uint32 MemberStart;                           // Start of member
-   uint32 MemberEnd;                             // End of member
+   const char * MemberName = 0;                  // Name of library member
+   uint32 MemberStart = 0;                       // Start of member
+   uint32 MemberEnd = 0;                         // End of member
 
    if (CurrentOffset >= DictionaryOffset) return 0;// No more members
 
@@ -831,7 +831,7 @@ const char * CLibrary::ExtractMemberUNIX(CFileBuffer * Destination) {
          // Pointer to LongNames record
          p = Buf() + LongNames;
          // Find out whether we have terminating zeroes:
-         if (LongNamesSize > 1 && p[LongNamesSize-1] == '/' || (p[LongNamesSize-1] <= ' ' && p[LongNamesSize-2] == '/')) {
+         if ((LongNamesSize > 1 && p[LongNamesSize-1] == '/') || (p[LongNamesSize-1] <= ' ' && p[LongNamesSize-2] == '/')) {
             // Names are terminated by '/'. Replace all '/' by 0 in the longnames record
             for (uint32 j = 0; j < LongNamesSize; j++, p++) {
                if (*p == '/') *p = 0;
@@ -968,7 +968,8 @@ void CLibrary::InsertMemberUNIX(CFileBuffer * member) {
    }
    else {
       // ELF and COFF library store names < 16 characters in the name field
-      strcpy(header.Name, name);
+      strncpy(header.Name, name, 16);
+      //memcpy (header.Name, name, 16);
    }
    // Date
    sprintf(header.Date, "%u", (uint32)time(0));

@@ -1,13 +1,13 @@
 /****************************  disasm.h   **********************************
 * Author:        Agner Fog
 * Date created:  2007-02-21
-* Last modified: 2011-08-01
+* Last modified: 2012-08-23
 * Project:       objconv
 * Module:        disasm.h
 * Description:
 * Header file for disassembler
 *
-* Copyright 2007-2011 GNU General Public License http://www.gnu.org/licenses
+* Copyright 2007-2012 GNU General Public License http://www.gnu.org/licenses
 *****************************************************************************/
 #ifndef DISASM_H
 #define DISASM_H
@@ -30,7 +30,7 @@ struct SOpcodeDef {
    uint16 Source1;                     // type and size of 1. source operand
    uint16 Source2;                     // type and size of 2. source operand
    uint16 Source3;                     // type and size of 3. source operand
-   uint16 Source4;                     // type and size of 4. source operand (not used, for future use)
+   uint16 Swizzle;                     // swizzle, convert, mask options if MVEX prefix, may be used for 4. source operand otherwise (unused)
    uint16 TableLink;                   // this entry is a link to another map
    uint16 Options;                     // miscellaneous options
 };
@@ -70,6 +70,8 @@ InstructionSet:
 0x19:    AVX
 0x1A:    FMA3
 0x1C:    AVX2
+0x1D:    Transactional Synchronization
+0x20:    Knights corner
 0x100:   8087
 0x101:   80387
 0x800:   Privileged instruction
@@ -105,18 +107,20 @@ AllowedPrefixes:
          * always required
 0x400:   F3 prefix allowed for other purpose. Typical = scalar single precision xmm (ss)
 0x800:   F2 prefix allowed for other purpose. Typical = scalar double precision xmm (sd)
+0xC40:   F2 and F3 prefix allowed for XACQUIRE and XRELEASE
 0xE00:   none/66/F2/F3 prefix indicate ps/pd/sd/ss xmm
 0x1000:  REX.W prefix determines integer g.p. operand size or fp precision or swaps operands or other purpose
 0x2000:  REX.W prefix allowed but unnecessary
-0x3000:  REX.W prefix determines integer vector operand size
+0x3000:  REX.W prefix determines integer (vector) operand size
 0x4000:  REX.W prefix swaps last two operands
 0x8000:  Instruction not allowed without 66/F2/F3 prefix as specified by previous bits
 0x10000: VEX or XOP prefix allowed
-0x20000: VEX or XOP prefix required
+0x20000: VEX or MVEX or XOP prefix required
 0x40000: VEX.L prefix allowed
 0x80000: VEX.vvvv prefix allowed
 0x100000:VEX.L prefix required
 0x200000:VEX.L prefix allowed only if pp bits < 2
+0x400000:MVEX prefix allowed
 
 InstructionFormat:
 (Values can be OR'ed):
@@ -125,19 +129,20 @@ InstructionFormat:
 1:      No mod/reg/rm byte. Operands are implicit
 2:      No mod/reg/rm byte. No operands (other than possibly immediate operand)
 3:      No mod/reg/rm byte. Register operand indicated by bits 0-2
+4:      Has VEX or MVEX prefix and no mod/reg/rm byte, Register operand, if any, indicated by VEX.v
 0x10:   Has mod/reg/rm byte and possibly a SIB byte
 0x11:   Has mod/reg/rm byte and one register/memory operand
 0x12:   Has mod/reg/rm byte, a register destination operand and a register/memory source operand
 0x13:   Has mod/reg/rm byte, a register/memory destination operand and a register source operand
 0x14:   Has mod/reg/rm byte and AMD DREX byte. One destination and two source operands and possibly an immediate byte operand (AMD SSE5 instructions never implemened)
 0x15:   Has mod/reg/rm byte and AMD DREX byte. One destination and three source operands. One of the source operands is equal to the destination operand (AMD SSE5 instructions never implemened)
-0x18:   Has VEX prefix and 2 operands. Dest = VEX.v, src = rm, opcode extension in r bits. Src omitted if no VEX prefix.
-0x19:   Has VEX prefix and 3 operands. Dest = r,  src1 = VEX.v, src2 = rm. Src1 omitted if no VEX prefix. May swap src1 and src2 if VEX.W = 0
+0x18:   Has VEX or MVEX prefix and 2 operands. Dest = VEX.v, src = rm, opcode extension in r bits. Src omitted if no VEX prefix.
+0x19:   Has VEX or MVEX prefix and 3 operands. Dest = r,  src1 = VEX.v, src2 = rm. Src1 omitted if no VEX prefix. May swap src1 and src2 if VEX.W = 0
 0x1A:   Has VEX prefix and 3 operands. Dest = rm, src1 = VEX.v, src2 = r
 0x1B:   Has VEX prefix and 3 operands. Dest = r,  src1 = rm, src2 = VEX.v.
 0x1C:   Has VEX prefix and 4 operands. Dest = r,  src1 = VEX.v, src2 = rm, src3 = bits 4-7 of immediate byte. May swap src2 and src3 if VEX.W
 0x1D:   Has VEX prefix and 4 operands. Dest = r,  src1 = bits 4-7 of immediate byte, src2 = rm, src3 = VEX.v. May swap src2 and src3 if VEX.W
-0x1E:   Has VEX prefix VSIB and 3 operands. Dest = r, src1 = rm, mask = VEX.v. SIB byte required
+0x1E:   Has VEX prefix VSIB and 2 or 3 operands. Dest = r or rm, src1 = rm or r, src2 = VEX.v or k register or none. VSIB byte required (rm operand & 0xF00 = index register size, rm operand & 0xFF = operand size)
 0x20:   Has 2 bytes immediate operand (ret i) or 1 + 1 bytes (insrtq)
 0x40:   Has 1 byte immediate operand or short jump
 0x60:   Has 2 + 1 = 3 bytes immediate operand (enter)
@@ -193,6 +198,7 @@ the values for these two operands are OR'ed (e.g. imul eax,ebx,9; shrd eax,ebx,c
 0x44:   64 bit float x87, double precision
 0x45:   80 bit float x87, long double precision
 0x48:   float SSE, unknown size
+0x4A:   16 bit float, half precision
 0x4B:   32 bit float SSE,  single precision (ss) or packed (ps)
 0x4C:   64 bit float SSE2, double precision (sd) or packed (pd)
 0x4F:   XMM float. Size depends on prefix: none = ps, 66 = pd, F2 = sd, F3 = ss; or VEX.W bit = sd/pd
@@ -208,6 +214,7 @@ the values for these two operands are OR'ed (e.g. imul eax,ebx,9; shrd eax,ebx,c
 0x92:   control register
 0x93:   debug register
 0x94:   test register (obsolete or undocumented)
+0x95:   k0 - k7 mask register
 0xa1:   al
 0xa2:   ax
 0xa3:   eax
@@ -224,11 +231,12 @@ the values for these two operands are OR'ed (e.g. imul eax,ebx,9; shrd eax,ebx,c
 0xc2:   es:[di], es:[edi] or [rdi]
 
 // The following values can be added to specify vectors
-0x100:  Vector MMX or XMM or YMM, depending on 66 prefix and VEX.L prefix
-0x200:  Vector XMM or YMM, depending on VEX.L prefix
+0x100:  Vector MMX or XMM or YMM or ZMM, depending on 66 prefix and VEX.L prefix and MVEX prefix
+0x200:  Vector XMM, YMM or ZMM, depending on VEX.L prefix and MVEX prefix
 0x300:  Vector MMX (8  bytes)
 0x400:  Vector XMM (16 bytes)
 0x500:  Vector YMM (32 bytes)
+0x600:  Vector ZMM (64 bytes)
 
 // The following values can be added to specify operand type
 0x1000: Must be register, memory operand not allowed
@@ -253,6 +261,54 @@ the values for these two operands are OR'ed (e.g. imul eax,ebx,9; shrd eax,ebx,c
 0x40000000: Gnu indirect function (CPU dispatcher)
 0x80000000: Symbol is a segment (in COFF file symbol table)
 
+Swizzle:
+--------
+This field indicates the meaning of the sss, e and kkk bits of an MVEX prefix. 
+(The Swizzle field may also be used in the future for indicating an extra operand
+if it is not needed for its current purpose).
+Bit 0-4 indicate meaning of sss field:
+    0. none, sss must be 0
+    1. sss ignored or used only for sae, offset multiplier defined, vector size defined
+    2. sss ignored or used only for sae, offset multiplier defined, vector size not defined by sss
+    3. reserved for future use
+    4. Sf32. 32-bit float operand. permutation if register, broadcast or conversion if memory operand
+    5. Sf64. 64-bit float operand. permutation if register, broadcast if memory operand
+    6. Si32. 32-bit integer operand. permutation if register, broadcast or conversion if memory operand
+    7. Si64. 64-bit integer operand. permutation if register, broadcast if memory operand
+    8. Uf32. 32-bit float memory operand. Up conversion from smaller integer or float operand
+    9. Uf64. 64-bit float memory operand. Currently no conversion supported
+  0xA. Ui32. 32-bit integer memory operand. Up conversion from smaller integer operand
+  0xB. Ui64. 64-bit integer memory operand. Currently no conversion supported
+  0xC. Df32. 32-bit float memory operand. Down conversion to smaller integer or float operand
+  0xD. Df64. 64-bit float memory operand. Currently no conversion supported
+  0xE. Di32. 32-bit integer memory operand. Down conversion to smaller integer operand
+  0xF. Di64. 64-bit integer memory operand. Currently no conversion supported
+ 0x10. Uf32, broadcast * 4, vbroadcastf32x4
+ 0x11. Uf64, broadcast * 4, vbroadcastf64x4
+ 0x12. Ui32, broadcast * 4, vbroadcasti32x4
+ 0x13. Ui64, broadcast * 4, vbroadcasti64x4
+ 0x14. Si32, half size, vcvtdq2pd, vcvtudq2pd
+ 0x15. Sf32, half size, vcvtps2pd
+ 0x16. Sf32, without register swizzle and limited broadcast, vfmadd233ps
+Bit 6-7 indicate offset multiplier
+  0x00  No broadcast. Multiplier corresponds to conversion
+  0x40  Broadcast, gather and scatter instructions. Multiplier corresponds to element size before conversion
+Bit 8-10 indicate alternative meaning of sss field for register operand when E bit is 1:
+  0x000. E bit not allowed for register operand
+  0x100. sss specifies rounding mode
+  0x200. high s bit indicates suppress all exceptions {sae}
+  0x300. sss specifies rounding mode and sae
+  0x400. no rounding and no sae. sss bits ignored when E = 1
+Bit 11  ignore E bit
+  0x000. The E bit means cache eviction hint
+  0x800. The E bit is ignored for memory operands or has a different meaning
+Bit 12-13 indicate meaning of kkk field
+  0x0000. kkk bits unused, must be 0
+  0x1000. kkk bits specify register used for masked operation
+  0x2000. kkk bits specify mask register as destination operand
+  0x3000. kkk bits specify mask register used both for masked operation and as destination operand
+The multiplier for single-byte address offsets is derived from the meaning of the sss field.
+
 TableLink:
 ----------
 Used for linking to another opcode table when more than one opcode begins 
@@ -268,14 +324,16 @@ the criterion defined by TableLink.
 4:      Use mod and reg fields of mod/reg/rm byte as index into next table,
         first 8 entries indexed by reg for mod < 3, next 8 entries indexed by reg for mod = 3.
 5:      Use rm bits of mod/reg/rm byte as index into next table (8 entries)
-6:      Use immediate byte after any operands as index into next table (256 entries)
+6:      Use immediate byte after any operands as index into next table. Note: Instruction format must be specified
 7:      Use mode as index into next table (0: 16 bits, 1: 32 bits, 2: 64 bits)
 8:      Use operand size as index into next table (0: 16 bits, 1: 32 bits, 2: 64 bits)
 9:      Use prefixes as index into next table (0: none, 1: 66, 2: F2, 3: F3)
 0x0A:   Use address size as index into next table (0: 16 bits, 1: 32 bits, 2: 64 bits)
 0x0B:   Use VEX prefix and VEX.L bit as index into next table (0: VEX absent, 1: VEX.L=0, 2: VEX.L=1)
 0x0C:   Use VEX.W bit as index into next table (0: VEX.W=0, 1: VEX.W=1)
-0x0D:   Use VEX.L bit as index into next table (0: VEX.L=0, 1: VEX.L=1)
+0x0D:   Use VEX.L bit and MVEX as index into next table (0: VEX.L=0, 1: VEX.L=1, 2:MVEX.L=0, 3: MVEX.L=1)
+0x0E:   Use VEX prefix type as index into next table. (0: 2- or 3-bytes VEX or none, 1: 4-bytes MVEX)
+0x0F:   Use MVEX.E bit as index into next table. (0: MVEX.E = 0 or no MVEX, 1: MVEX.E = 1)
 0x10:   Use assembly language dialect as index into next table (0: MASM, 1: NASM/YASM, 2: GAS)
 
 Options:
@@ -295,6 +353,15 @@ Options:
 
 */
 
+// Structure for opcode swizzle table entries indicating meaning of MVEX.sss bits
+struct SwizSpec {
+    uint32 memop;       // memory operand type
+    uint32 memopsize;   // memory operand size = byte offset multiplier = required alignment
+    uint32 elementsize; // memory operand size for broadcast, gather and scatter instructions
+    const char * name;  // name of permutation, conversion or rounding
+};
+
+
 // Define data structures and classes used by class CDisassembler:
 
 // Structure for properties of a single opcode during disassembly
@@ -307,6 +374,7 @@ struct SOpcodeProp {
    uint32 Errors;                                // Errors that will prevent execution or are unlikely to be intentional
    uint32 AddressSize;                           // Address size: 16, 32 or 64
    uint32 OperandSize;                           // Operand size: 16, 32 or 64
+   uint32 MaxNumOperands;                        // Number of opcode table operands to check
    uint32 Mod;                                   // mod bits of mod/reg/rm byte
    uint32 Reg;                                   // reg bits of mod/reg/rm byte
    uint32 RM;                                    // r/m bits of mod/reg/rm byte
@@ -314,7 +382,11 @@ struct SOpcodeProp {
    uint32 BaseReg;                               // Base  register + 1. (0 if none)
    uint32 IndexReg;                              // Index register + 1. (0 if none)
    uint32 Scale;                                 // Scale factor = 2^Scale
-   uint32 DVREX;                                 // ~VEX.vvvv or AMD DREX byte
+   uint32 Vreg;                                  // ~VEX.vvvv or AMD DREX byte
+   uint32 Kreg;                                  // MVEX.kkk mask register
+   uint32 Esss;                                  // MVEX.sss and E swizzle and eviction hint bits
+   SwizSpec const * SwizRecord;                  // Selected entry in Swizzle table for MVEX code
+   uint32 OffsetMultiplier;                      // Multiplier for 1-byte offset obtained from MVEX.sss and table lookup
    uint32 Operands[5];                           // Operand types for destination, source, immediate
    uint32 OpcodeStart1;                          // Index to first opcode byte, after prefixes
    uint32 OpcodeStart2;                          // Index to last opcode byte, after 0F, 0F 38, etc., before mod/reg/rm byte and operands
@@ -335,7 +407,7 @@ struct SOpcodeProp {
 // 0: Segment prefix (26, 2E, 36, 3E, 64, 65)
 // 1: Address size prefix (67)
 // 2: Lock prefix (F0)
-// 3: Repeat prefix (F2, F3)
+// 3: Repeat prefix (F2, F3) or VEX prefix (C4, C5, 62)
 // 4: Operand size prefix (66, REX.W)
 // 5: Operand type prefix (66, F2, F3)
 // 6: VEX prefix: bit 5: VEX.L (vector length), bit 0-4: VEX.mmmmm
@@ -345,7 +417,7 @@ struct SOpcodeProp {
 //    bit 2: R = extension of reg bits
 //    bit 3: W = 64 bit operand size, or swap operands or other use of VEX.W
 //    bit 4: 2-bytes VEX prefix
-//    bit 5: 3-bytes VEX prefix
+//    bit 5: 3 or 4-bytes VEX prefix
 //    bit 6: REX prefix
 //    bit 7: XOP prefix or DREX byte (AMD only)
 // Note that the 66 and REX.W prefixes belong to two categories. The interpretation
@@ -586,6 +658,7 @@ protected:
    void    StorePrefix(uint32 Category, uint8 Byte);// Store prefix according to category
    void    FindMapEntry();                       // Find entry in opcode maps
    void    FindOperands();                       // Interpret mod/reg/rm and SIB bytes and find operand fields
+   void    SwizTableLookup();                    // Find swizzle table entry for MVEX code
    void    FindOperandTypes();                   // Determine the types of each operand
    void    FindLabels();                         // Find any labels at current position and next
    void    FindRelocations();                    // Find any relocation sources in this instruction
@@ -645,6 +718,7 @@ protected:
    void    WriteRMOperand(uint32 Type);          // Write memory or register operand from mod/rm bits of mod/reg/rm byte and possibly SIB byte to OutFile
    void    WriteDREXOperand(uint32 Type);        // Write register operand from dest bits of DREX byte
    void    WriteVEXOperand(uint32 Type, int i);  // Write register operand from VEX.vvvv bits or immediate bits
+   void    WriteOperandAttribute(int i, int isMem);// Write operand attributes and instruction attributes from MVEX sss, e and kkk bits
    void    WriteImmediateOperand(uint32 Type);   // Write immediate operand or direct jump/call address
    void    WriteOtherOperand(uint32 Type);       // Write other type of operand
    void    WriteRegisterName(uint32 Value, uint32 Type); // Write name of register to OutFile
@@ -678,10 +752,10 @@ protected:
 // Declare tables in opcodes.cpp:
 extern SOpcodeDef OpcodeMap0[256];               // First opcode map
 
-extern SOpcodeDef const * OpcodeStartPage[];     // Entries to opcode maps, indexed by VEX.mm bits if any
-extern SOpcodeDef const * OpcodeStartPageXOP[];  // Entries to opcode maps, indexed by XOP.mm bits
+extern SOpcodeDef const * OpcodeStartPageVEX[];  // Entries to opcode maps, indexed by VEX.mmmm bits
+extern SOpcodeDef const * OpcodeStartPageXOP[];  // Entries to opcode maps, indexed by XOP.mmmm bits
 
-extern const uint32 NumOpcodeStartPage;          // Number of entries in OpcodeStartPage
+extern const uint32 NumOpcodeStartPageVEX;       // Number of entries in OpcodeStartPage
 extern const uint32 NumOpcodeStartPageXOP;       // Number of entries in OpcodeStartPageXOP
 
 extern const SOpcodeDef * const OpcodeTables[];  // Pointers to all opcode tables
@@ -697,6 +771,9 @@ extern const char * RegisterNames32[16];         // Names of 32 bit registers
 extern const char * RegisterNames64[16];         // Names of 64 bit registers
 extern const char * RegisterNamesSeg[8];         // Names of segment registers
 extern const char * RegisterNamesCR[16];         // Names of control registers
+
+extern SwizSpec const * SwizTables[][2];         // Pointers to swizzle tables
+extern SwizSpec const * SwizRoundTables[][2];    // Pointers to swizzle round tables
 
 // Define constants for special section/segment/group values
 #define ASM_SEGMENT_UNKNOWN    0   // Unknown segment for external symbols

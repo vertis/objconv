@@ -298,7 +298,7 @@ void CELF<ELFSTRUCTURES>::Dump(int options) {
       for (uint32 sc = 0; sc < NSections; sc++) {
          // Get copy of 32-bit header or converted 64-bit header
          TELF_SectionHeader sheader = SectionHeaders[sc];
-         int entrysize = (uint32)(sheader.sh_entsize);
+         uint32 entrysize = (uint32)(sheader.sh_entsize);
          uint32 namei = sheader.sh_name;
          if (namei >= SecStringTableLen) {err.submit(2112); break;}
          printf("\n%2i Name: %-18s Type: %s", sc, SecStringTable + namei,
@@ -412,7 +412,7 @@ void CELF<ELFSTRUCTURES>::Dump(int options) {
             printf("\n  Relocations:");
             int8 * reltab = Buf() + uint32(sheader.sh_offset);
             int8 * reltabend = reltab + uint32(sheader.sh_size);
-            int expectedentrysize = sheader.sh_type == SHT_RELA ? 
+            uint32 expectedentrysize = sheader.sh_type == SHT_RELA ? 
                sizeof(TELF_Relocation) :              // Elf32_Rela, Elf64_Rela
                sizeof(TELF_Relocation) - WordSize/8;  // Elf32_Rel,  Elf64_Rel
             if (entrysize < expectedentrysize) {err.submit(2033); entrysize = expectedentrysize;}

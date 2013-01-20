@@ -186,7 +186,7 @@ void CMAC2ASM<MACSTRUCTURES>::MakeRelocations() {
    uint32 ReltabOffset;                // File offset of relocation table for this section
    uint32 SourceOffset;                // Section-relative offset of relocation source
    uint32 SourceSize;                  // Size of relocation source
-   int32  Inline;                      // Inline addend at relocation source
+   int32  Inline = 0;                  // Inline addend at relocation source
    uint32 TargetAddress;               // Base-relative address of relocation target
    uint32 TargetSymbol;                // Symbol index of target
    int32  TargetSection;               // Target section
@@ -196,7 +196,7 @@ void CMAC2ASM<MACSTRUCTURES>::MakeRelocations() {
    uint32 R_Type;                      // Relocation type in Mach-O record
    uint32 R_Type2;                     // Relocation type of second entry of a pair
    uint32 R_PCRel;                     // Relocation is self-relative
-   uint32 RelType;                     // Relocation type translated to disasm record
+   uint32 RelType = 0;                 // Relocation type translated to disasm record
 
    // Loop through RelocationQueue. There is one entry for each relocation table
    for (iqq = 0; iqq < RelocationQueue.GetNumEntries(); iqq++) {

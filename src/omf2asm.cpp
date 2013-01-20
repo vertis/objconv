@@ -242,9 +242,9 @@ void COMF2ASM::CountSegments() {
    // Communal sections (as used by Borland):
    for (i = 0; i < NumRecords; i++) {
       if (Records[i].Type2 == OMF_COMDEF) {
-         uint32 DType, DSize, DNum;
+         uint32 DType, DSize = 0, DNum;
          uint16 Segment = 0;
-         const char * FuncName;
+         const char * FuncName = 0;
 
          // Loop through possibly multiple entries in record
          while (Records[i].Index < Records[i].End) {
@@ -466,7 +466,7 @@ void COMF2ASM::MakeGroupDefinitions() {
 void COMF2ASM::MakeSegmentList() {
    // Make Sections list in Disasm
    int32  SegNum;                                // Segment number
-   int32  Segment;                               // Segment number in OMF record
+   int32  Segment = 0;                           // Segment number in OMF record
    uint32 RecNum;                                // OMF record number
    uint32 LastDataRecord;                        // OMF record number of last LEDATA record
    uint32 RecOffset;                             // Segment offset of LEDATA, LIDATA record
