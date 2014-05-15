@@ -619,7 +619,9 @@ void CCommandLineInterpreter::InterpretErrorOption(char * string) {
 void CCommandLineInterpreter::InterpretSymbolNameChangeOption(char * string) {
    // Interpret various options for changing symbol names
    SSymbolChange sym = {0,0,0,0};   // Symbol change record
-
+   FILE *pFile;
+   char fname1[2048];
+   char fname2[2048];
    // Check for symbol names in this command
    char * name1 = 0, * name2 = 0;
    if (string[2] == ':' && string[3]) {
@@ -686,6 +688,20 @@ void CCommandLineInterpreter::InterpretSymbolNameChangeOption(char * string) {
       sym.Action  = SYMA_CHANGE_NAME;
       if (string[0] == 'a') sym.Action = SYMA_CHANGE_ALIAS;
       SymbolList.Push(&sym, sizeof(sym));  SymbolChangeEntries++;
+      break;
+
+   case 'f': case 'F':
+      pFile = fopen(name1, "r");
+      if (name1 == 0 || *name1 == 0 || !pFile) {
+          err.submit(2008, string); return;
+      }
+      while (EOF != fscanf(pFile, "%s %s\n", fname1, fname2)) {
+          sym.Name1 = fname1;
+          sym.Name2 = fname2;
+          sym.Action  = SYMA_CHANGE_NAME;
+          SymbolList.Push(&sym, sizeof(sym));  SymbolChangeEntries++;
+      }
+      fclose(pFile);
       break;
 
    case 'p': case 'P':  // prefix replace option
@@ -1149,6 +1165,8 @@ void CCommandLineInterpreter::Help() {
    printf("\n-nu+       add Underscores to symbol Names.");
    printf("\n-nd        replace Dot/underscore in section names.");
    printf("\n-nr:N1:N2  Replace symbol Name N1 with N2.");
+   printf("\n-nf:file   Replace symbols according to the symbol table with N1:N2 lines");
+
    printf("\n-ar:N1:N2  make Alias N2 for existing public name N1.");
    printf("\n-np:N1:N2  Replace symbol Prefix N1 with N2.");
    printf("\n-nw:N1     make public symbol Name N1 Weak (ELF and MAC64 only).");
