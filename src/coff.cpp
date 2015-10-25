@@ -256,9 +256,9 @@ void CCOFF::Dump(int options) {
       printf("\nFlags: 0x%04X", FileHeader->Flags);
 
       // May be removed:
-      printf("\nSymbol table offset: %i", FileHeader->PSymbolTable);
-      printf("\nString table offset: %i", FileHeader->PSymbolTable + FileHeader->NumberOfSymbols * SIZE_SCOFF_SymTableEntry);
-      printf("\nSection headers offset: %i", (uint32)sizeof(SCOFF_FileHeader) + FileHeader->SizeOfOptionalHeader);
+      printf("\nSymbol table offset: 0x%X", FileHeader->PSymbolTable);
+      printf("\nString table offset: 0x%X", FileHeader->PSymbolTable + FileHeader->NumberOfSymbols * SIZE_SCOFF_SymTableEntry);
+      printf("\nSection headers offset: 0x%X", (uint32)sizeof(SCOFF_FileHeader) + FileHeader->SizeOfOptionalHeader);
 
       // Optional header
       if (OptionalHeader) {
@@ -611,9 +611,24 @@ void CCOFF::PrintSymbolTable(int symnum) {
                sa->section.Length, sa->section.NumberOfRelocations, sa->section.NumberOfLineNumbers, 
                sa->section.CheckSum, sa->section.Number, sa->section.Selection);
          }
+         else if (s0->s.StorageClass == COFF_CLASS_ALIAS) {
+            // This is section definition aux record
+            printf("\n  Aux alias definition record:");
+            printf("\n  symbol index: %i, ", sa->weak.TagIndex);
+            switch (sa->weak.Characteristics) {
+            case IMAGE_WEAK_EXTERN_SEARCH_NOLIBRARY:
+                printf("no library search"); break;
+            case IMAGE_WEAK_EXTERN_SEARCH_LIBRARY:
+                printf("library search"); break;
+            case IMAGE_WEAK_EXTERN_SEARCH_ALIAS:
+                printf("alias symbol"); break;
+            default:
+                printf("unknown characteristics 0x%X", sa->weak.Characteristics);
+            }
+         }         
          else {
             // Unknown aux record type
-            printf("\n  Unknown Auxiliary record type.");
+            printf("\n  Unknown Auxiliary record type %i", s0->s.StorageClass);
          }
          Symtab.b += SIZE_SCOFF_SymTableEntry;
          jsym++;
@@ -647,7 +662,8 @@ void CCOFF::PublicNames(CMemoryBuffer * Strings, CSList<SStringEntry> * Index, i
       }
 
       // Search for public symbol
-      if (Symtab.p->s.SectionNumber > 0 && Symtab.p->s.StorageClass == COFF_CLASS_EXTERNAL) {
+      if ((Symtab.p->s.SectionNumber > 0 && Symtab.p->s.StorageClass == COFF_CLASS_EXTERNAL) 
+      || Symtab.p->s.StorageClass == COFF_CLASS_ALIAS) {
          // Public symbol found
          SStringEntry se;
          se.Member = m;

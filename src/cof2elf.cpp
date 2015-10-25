@@ -266,7 +266,7 @@ void CCOF2ELF<ELFSTRUCTURES>::MakeSymbolTable() {
    int numaux;                         // Number of auxiliary entries in source record
    int OldSectionIndex;                // Index into old section table. 1-based
    int NewSectionIndex;                // Index into new section table. 0-based
-   const int WordSize = sizeof(NewFileHeader.e_entry) * 8; // word size 32 or 64 bits
+   //const int WordSize = sizeof(NewFileHeader.e_entry) * 8; // word size 32 or 64 bits
 
    TELF_Symbol sym;                    // Temporary symbol table record
    const char * name1;                 // Name of section or main record

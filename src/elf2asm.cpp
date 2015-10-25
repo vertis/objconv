@@ -100,7 +100,7 @@ void CELF2ASM<ELFSTRUCTURES>::MakeSectionList() {
    for (uint32 sc = 0; sc < this->NSections; sc++) {
       // Get copy of 32-bit header or converted 64-bit header
       TELF_SectionHeader sheader = this->SectionHeaders[sc];
-      int entrysize = (uint32)(sheader.sh_entsize);
+      //int entrysize = (uint32)(sheader.sh_entsize);
       uint32 namei = sheader.sh_name;
       if (namei >= this->SecStringTableLen) {err.submit(2112); break;}
 
@@ -178,7 +178,7 @@ void CELF2ASM<ELFSTRUCTURES>::MakeSymbolList() {
          uint32 symtabsize = (uint32)(sheader.sh_size);
          int8 * symtab = this->Buf() + uint32(sheader.sh_offset);
          int8 * symtabend = symtab + symtabsize;
-         if (entrysize < sizeof(TELF_Symbol)) {err.submit(2033); entrysize = sizeof(TELF_Symbol);}
+         if (entrysize < (int)sizeof(TELF_Symbol)) {err.submit(2033); entrysize = (int)sizeof(TELF_Symbol);}
 
          // Loop through symbol table
          uint32 symi1;                           // Symbol number in this table

@@ -189,7 +189,7 @@ void CMAC2ASM<MACSTRUCTURES>::MakeRelocations() {
    int32  Inline = 0;                  // Inline addend at relocation source
    uint32 TargetAddress;               // Base-relative address of relocation target
    uint32 TargetSymbol;                // Symbol index of target
-   int32  TargetSection;               // Target section
+   //int32  TargetSection;             // Target section
    int32  Addend;                      // Offset to add to target
    uint32 ReferenceAddress;            // Base-relative address of reference point
    uint32 ReferenceSymbol;             // Symbol index of reference point
@@ -246,7 +246,7 @@ void CMAC2ASM<MACSTRUCTURES>::MakeRelocations() {
                TargetSymbol = relp.r->r_symbolnum + 1;
             }
             else {
-               TargetSection = relp.r->r_symbolnum;
+               //TargetSection = relp.r->r_symbolnum;
             }
             TargetAddress = 0;
          }
@@ -290,7 +290,7 @@ void CMAC2ASM<MACSTRUCTURES>::MakeRelocations() {
                TargetSymbol = relp.r->r_symbolnum + 1;
             }
             else {
-               TargetSection = relp.r->r_symbolnum;
+               //TargetSection = relp.r->r_symbolnum;
             }
             TargetAddress = 0;
          }

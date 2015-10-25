@@ -368,13 +368,16 @@ union SCOFF_SymTableEntry {
 // Use SIZE_SCOFF_SymTableEntry instead of sizeof(SCOFF_SymTableEntry)
 #define SIZE_SCOFF_SymTableEntry  18  // Size of SCOFF_SymTableEntry packed
 
+// values of weak.Characteristics
+#define IMAGE_WEAK_EXTERN_SEARCH_NOLIBRARY  1
+#define IMAGE_WEAK_EXTERN_SEARCH_LIBRARY    2
+#define IMAGE_WEAK_EXTERN_SEARCH_ALIAS      3
+
 /*
 #define N_BTMASK (0xf)
 #define N_TMASK  (0x30)
 #define N_BTSHFT (4)
-#define N_TSHIFT (2)
-
-  */
+#define N_TSHIFT (2)  */
 
 //#pragma pack(pop)
 

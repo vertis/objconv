@@ -1,13 +1,13 @@
 /****************************  disasm.h   **********************************
 * Author:        Agner Fog
 * Date created:  2007-02-21
-* Last modified: 2012-08-23
+* Last modified: 2014-12-06
 * Project:       objconv
 * Module:        disasm.h
 * Description:
 * Header file for disassembler
 *
-* Copyright 2007-2012 GNU General Public License http://www.gnu.org/licenses
+* Copyright 2007-2014 GNU General Public License http://www.gnu.org/licenses
 *****************************************************************************/
 #ifndef DISASM_H
 #define DISASM_H
@@ -30,7 +30,8 @@ struct SOpcodeDef {
    uint16 Source1;                     // type and size of 1. source operand
    uint16 Source2;                     // type and size of 2. source operand
    uint16 Source3;                     // type and size of 3. source operand
-   uint16 Swizzle;                     // swizzle, convert, mask options if MVEX prefix, may be used for 4. source operand otherwise (unused)
+   uint16 EVEX;                        // options for interpreting EVEX prefix, may be used for 4. source operand otherwise (unused)
+   uint16 MVEX;                        // options for interpreting MVEX prefix: swizzle, convert, mask options
    uint16 TableLink;                   // this entry is a link to another map
    uint16 Options;                     // miscellaneous options
 };
@@ -70,8 +71,13 @@ InstructionSet:
 0x19:    AVX
 0x1A:    FMA3
 0x1C:    AVX2
-0x1D:    Transactional Synchronization
-0x20:    Knights corner
+0x1D:    BMI1, BMI2, ADX, RDRAND, RDSEED, INVPCID, SMAP, PRFCHW, F16C, Transactional Synchronization
+0x20:    AVX512F,BW,DQ,VL
+0x21:    AVX512PF,ER,CD
+0x22:    SHA,TBD
+0x23:    AVX512IFMA,VBMI
+
+0x80:    MIC Knights Corner
 0x100:   8087
 0x101:   80387
 0x800:   Privileged instruction
@@ -80,7 +86,7 @@ InstructionSet:
 0x1004:  AMD SSE4a or AMD virtualization
 0x1005:  AMD XOP
 0x1006:  AMD FMA4
-0x1007:  AMD CVT16
+0x1007:  AMD TBM
 0x2001;  VIA
 
 0x4000:  Only available in 64 bit mode
@@ -95,7 +101,7 @@ AllowedPrefixes:
 1:       Address size prefix allowed, even if no mod/reg/rm byte
 2:       This is a stack operation. Address size prefix will truncate the stack pointer. Make warning if address size prefix or operand size prefix
 4:       Segment prefix allowed, even if no mod/reg/rm byte
-8:       Branch prediction hint prefix allowed (on Pentium 4)
+8:       Branch prediction hint prefix allowed (on Pentium 4) or BND prefix allowed
 0x10:    LOCK prefix allowed
 0x20:    REP prefix allowed
 0x40:    REPE/REPNE prefix allowed
@@ -108,19 +114,25 @@ AllowedPrefixes:
 0x400:   F3 prefix allowed for other purpose. Typical = scalar single precision xmm (ss)
 0x800:   F2 prefix allowed for other purpose. Typical = scalar double precision xmm (sd)
 0xC40:   F2 and F3 prefix allowed for XACQUIRE and XRELEASE
-0xE00:   none/66/F2/F3 prefix indicate ps/pd/sd/ss xmm
+0xE00:   none/66/F2/F3 prefix indicate ps/pd/sd/ss vector
+
 0x1000:  REX.W prefix determines integer g.p. operand size or fp precision or swaps operands or other purpose
 0x2000:  REX.W prefix allowed but unnecessary
-0x3000:  REX.W prefix determines integer (vector) operand size
-0x4000:  REX.W prefix swaps last two operands
+0x3000:  REX.W prefix determines integer (vector) operand size d/q or ps/pd
+0x4000:  VEX.W prefix determines integer (vector) operand size b/w
+0x5000:  VEX.W and 66 prefix determines integer operand size b/w/d/q (mask instructions. B = 66W0, W = _W0, D = 66W1, Q = _W1)
+0x7000:  REX.W prefix swaps last two operands (AMD)
 0x8000:  Instruction not allowed without 66/F2/F3 prefix as specified by previous bits
+
 0x10000: VEX or XOP prefix allowed
-0x20000: VEX or MVEX or XOP prefix required
+0x20000: VEX or EVEX or XOP prefix required
 0x40000: VEX.L prefix allowed
 0x80000: VEX.vvvv prefix allowed
+
 0x100000:VEX.L prefix required
 0x200000:VEX.L prefix allowed only if pp bits < 2
 0x400000:MVEX prefix allowed
+0x800000:EVEX prefix allowed
 
 InstructionFormat:
 (Values can be OR'ed):
@@ -129,15 +141,15 @@ InstructionFormat:
 1:      No mod/reg/rm byte. Operands are implicit
 2:      No mod/reg/rm byte. No operands (other than possibly immediate operand)
 3:      No mod/reg/rm byte. Register operand indicated by bits 0-2
-4:      Has VEX or MVEX prefix and no mod/reg/rm byte, Register operand, if any, indicated by VEX.v
+4:      Has VEX or EVEX prefix and no mod/reg/rm byte, Register operand, if any, indicated by VEX.v
 0x10:   Has mod/reg/rm byte and possibly a SIB byte
 0x11:   Has mod/reg/rm byte and one register/memory operand
 0x12:   Has mod/reg/rm byte, a register destination operand and a register/memory source operand
 0x13:   Has mod/reg/rm byte, a register/memory destination operand and a register source operand
 0x14:   Has mod/reg/rm byte and AMD DREX byte. One destination and two source operands and possibly an immediate byte operand (AMD SSE5 instructions never implemened)
 0x15:   Has mod/reg/rm byte and AMD DREX byte. One destination and three source operands. One of the source operands is equal to the destination operand (AMD SSE5 instructions never implemened)
-0x18:   Has VEX or MVEX prefix and 2 operands. Dest = VEX.v, src = rm, opcode extension in r bits. Src omitted if no VEX prefix.
-0x19:   Has VEX or MVEX prefix and 3 operands. Dest = r,  src1 = VEX.v, src2 = rm. Src1 omitted if no VEX prefix. May swap src1 and src2 if VEX.W = 0
+0x18:   Has VEX or EVEX prefix and 2 operands. (NDD) Dest = VEX.v, src = rm, opcode extension in r bits. Src omitted if no VEX prefix.
+0x19:   Has VEX or EVEX prefix and 3 operands. (NDS) Dest = r,  src1 = VEX.v, src2 = rm. Src1 omitted if no VEX prefix. May swap src1 and src2 if VEX.W = 0
 0x1A:   Has VEX prefix and 3 operands. Dest = rm, src1 = VEX.v, src2 = r
 0x1B:   Has VEX prefix and 3 operands. Dest = r,  src1 = rm, src2 = VEX.v.
 0x1C:   Has VEX prefix and 4 operands. Dest = r,  src1 = VEX.v, src2 = rm, src3 = bits 4-7 of immediate byte. May swap src2 and src3 if VEX.W
@@ -170,7 +182,7 @@ the values for these two operands are OR'ed (e.g. imul eax,ebx,9; shrd eax,ebx,c
 6:      integer memory, other size
 7:      48 bit memory
 8:      16 or 32 bit integer, depending on 66 prefix
-9:      16, 32 or 64 bit integer, depending on 66 or REX.W prefix
+9:      16, 32 or 64 bit integer, depending on 66 or REX.W prefix. (8 bit in some cases as indicated by AllowedPrefixes)
 0x0A:   16, 32 or 64 bit integer, default size = address size (REX.W not needed)
 0x0B:   16, 32 or 64 bit near indirect pointer (jump)
 0x0C:   16, 32 or 64 bit near indirect pointer (call)
@@ -214,7 +226,10 @@ the values for these two operands are OR'ed (e.g. imul eax,ebx,9; shrd eax,ebx,c
 0x92:   control register
 0x93:   debug register
 0x94:   test register (obsolete or undocumented)
-0x95:   k0 - k7 mask register
+0x95:   k0 - k7 mask register. 16 bits if memory operand, 32-64 bits if register
+0x96:   (reserved for future mask register > 16 bits)
+0x98:   bnd0 - bnd3 bounds register
+
 0xa1:   al
 0xa2:   ax
 0xa3:   eax
@@ -231,12 +246,14 @@ the values for these two operands are OR'ed (e.g. imul eax,ebx,9; shrd eax,ebx,c
 0xc2:   es:[di], es:[edi] or [rdi]
 
 // The following values can be added to specify vectors
-0x100:  Vector MMX or XMM or YMM or ZMM, depending on 66 prefix and VEX.L prefix and MVEX prefix
-0x200:  Vector XMM, YMM or ZMM, depending on VEX.L prefix and MVEX prefix
+0x100:  Vector MMX or XMM or YMM or ZMM, depending on 66 prefix and VEX.L prefix and EVEX.LL prefix
+0x200:  Vector XMM, YMM or ZMM, depending on VEX.L prefix and EVEX.LL prefix
 0x300:  Vector MMX (8  bytes)
 0x400:  Vector XMM (16 bytes)
 0x500:  Vector YMM (32 bytes)
 0x600:  Vector ZMM (64 bytes)
+0x700:  Future ??? (128 bytes)
+0xF00:  Vector half the size defined by VEX.L prefix and EVEX.LL prefix. Minimum size = 8 bytes for memory, xmm for register
 
 // The following values can be added to specify operand type
 0x1000: Must be register, memory operand not allowed
@@ -261,10 +278,37 @@ the values for these two operands are OR'ed (e.g. imul eax,ebx,9; shrd eax,ebx,c
 0x40000000: Gnu indirect function (CPU dispatcher)
 0x80000000: Symbol is a segment (in COFF file symbol table)
 
-Swizzle:
+EVEX:
+--------
+This field indicates the meaning of the z, L'L, b and aaa bits of an EVEX prefix. 
+(The EVEX field may also be used in the future for indicating an extra operand
+if it is not needed for its current purpose).
+
+Bit 0-3 indicate meaning of L'L, b field:
+  0x01  broadcast allowed for memory operand, LL indicate vector length
+  0x02  SAE allowed for register operands, no rounding control, LL indicate vector length
+  0x06  rounding control and SAE allowed for register operands  
+  0x08  Scalar. LL ignored
+
+Bit 4-7 indicate mask use in aaa/kkk field
+  0x00  no masking. aaa must be zero
+  0x10  allow masking, not zeroing
+  0x20  allow masking  and zeroing
+  0x50  allow masking, not zeroing. aaa must be nonzero
+  0x80  mask is modified by instruction
+
+Bit 12-15 indicate offset multiplier
+  0x0000 Multiplier corresponds to memory operand size
+  0x1000 Multiplier corresponds to vector element size
+  0x2200 Multiplier corresponds to half the size of the largest vector operand
+  0x2400 Multiplier corresponds to 1/4 of the size of the largest vector operand
+  0x2600 Multiplier corresponds to 1/8 of the size of the largest vector operand
+
+
+MVEX:
 --------
 This field indicates the meaning of the sss, e and kkk bits of an MVEX prefix. 
-(The Swizzle field may also be used in the future for indicating an extra operand
+(The MVEX field may also be used in the future for indicating an extra operand
 if it is not needed for its current purpose).
 Bit 0-4 indicate meaning of sss field:
     0. none, sss must be 0
@@ -329,17 +373,18 @@ the criterion defined by TableLink.
 8:      Use operand size as index into next table (0: 16 bits, 1: 32 bits, 2: 64 bits)
 9:      Use prefixes as index into next table (0: none, 1: 66, 2: F2, 3: F3)
 0x0A:   Use address size as index into next table (0: 16 bits, 1: 32 bits, 2: 64 bits)
-0x0B:   Use VEX prefix and VEX.L bit as index into next table (0: VEX absent, 1: VEX.L=0, 2: VEX.L=1)
+0x0B:   Use VEX prefix and VEX.L bits as index into next table (0: VEX absent, 1: VEX.L=0, 2: VEX.L=1, 3:MVEX or EVEX.LL=2, 4: EVEX.LL=3)
 0x0C:   Use VEX.W bit as index into next table (0: VEX.W=0, 1: VEX.W=1)
-0x0D:   Use VEX.L bit and MVEX as index into next table (0: VEX.L=0, 1: VEX.L=1, 2:MVEX.L=0, 3: MVEX.L=1)
-0x0E:   Use VEX prefix type as index into next table. (0: 2- or 3-bytes VEX or none, 1: 4-bytes MVEX)
+0x0D:   Use vector size by VEX.L bits as index into next table (0: VEX.L=0, 1: VEX.L=1, 2:MVEX or EVEX.LL=2, 3: EVEX.LL=3)
+0x0E:   Use VEX prefix type as index into next table. (0: 2- or 3-bytes VEX or none, 1: 4-bytes EVEX or MVEX)
 0x0F:   Use MVEX.E bit as index into next table. (0: MVEX.E = 0 or no MVEX, 1: MVEX.E = 1)
 0x10:   Use assembly language dialect as index into next table (0: MASM, 1: NASM/YASM, 2: GAS)
+0x11:   Use VEX prefix type as index into next table. (0: none, 1: VEX prefix, 2: EVEX prefix, 3: MVEX prefix)
 
 Options:
 (Values can be OR'ed):
 ----------------------
-1:      Append suffix for operand size or type to opcode name (prefix 0x100: b/w/d/q, 0xE00: ps/pd/ss/sd, 0x1000: s/d, 0x3000: d/q)
+1:      Append suffix for operand size or type to opcode name (prefix 0x100: b/w/d/q, 0xE00: ps/pd/ss/sd, 0x1000: s/d, 0x3000: d/q, 0x4000: b/w)
 2:      Prepend 'v' to opcode name if VEX prefix present
 4:      Does not change destination register
 8:      Can change registers other than explicit destination register (includes call etc.)
@@ -350,10 +395,12 @@ Options:
 0x100:  Aligned. Memory operand must be aligned, even if VEX prefixed
 0x200:  Unaligned. Unaligned memory operand always allowed.
 0x400:  Opcode name differs if 64 bits
+0x800:  Do not write size specifier on memory operand
+0x1000: Append alternative suffix to opcode name (prefix 0x3000: "32"/"64")
 
 */
 
-// Structure for opcode swizzle table entries indicating meaning of MVEX.sss bits
+// Structure for opcode swizzle table entries indicating meaning of EVEX.sss bits
 struct SwizSpec {
     uint32 memop;       // memory operand type
     uint32 memopsize;   // memory operand size = byte offset multiplier = required alignment
@@ -383,10 +430,10 @@ struct SOpcodeProp {
    uint32 IndexReg;                              // Index register + 1. (0 if none)
    uint32 Scale;                                 // Scale factor = 2^Scale
    uint32 Vreg;                                  // ~VEX.vvvv or AMD DREX byte
-   uint32 Kreg;                                  // MVEX.kkk mask register
-   uint32 Esss;                                  // MVEX.sss and E swizzle and eviction hint bits
-   SwizSpec const * SwizRecord;                  // Selected entry in Swizzle table for MVEX code
-   uint32 OffsetMultiplier;                      // Multiplier for 1-byte offset obtained from MVEX.sss and table lookup
+   uint32 Kreg;                                  // EVEX.aaa = MVEX.kkk mask register
+   uint32 Esss;                                  // EVEX.zLLb = MVEX.Esss option bits
+   SwizSpec const * SwizRecord;                  // Selected entry in MVEX table for MVEX code
+   uint32 OffsetMultiplier;                      // Multiplier for 1-byte offset calculated from EVEX or obtained from MVEX.sss and table lookup
    uint32 Operands[5];                           // Operand types for destination, source, immediate
    uint32 OpcodeStart1;                          // Index to first opcode byte, after prefixes
    uint32 OpcodeStart2;                          // Index to last opcode byte, after 0F, 0F 38, etc., before mod/reg/rm byte and operands
@@ -407,10 +454,11 @@ struct SOpcodeProp {
 // 0: Segment prefix (26, 2E, 36, 3E, 64, 65)
 // 1: Address size prefix (67)
 // 2: Lock prefix (F0)
-// 3: Repeat prefix (F2, F3) or VEX prefix (C4, C5, 62)
+// 3: Repeat prefix (F2, F3) or VEX prefix (C4, C5) or EVEX, MVEX (62) or XOP (8F)
 // 4: Operand size prefix (66, REX.W)
 // 5: Operand type prefix (66, F2, F3)
 // 6: VEX prefix: bit 5: VEX.L (vector length), bit 0-4: VEX.mmmmm
+//    MVEX: bit 5 = 0, bit 6 = 1. EVEX: bit 5 = 1, bit 6 = 1
 // 7: Rex prefix (40 - 4F), VEX.W,R,X,B, DREX.W,R,X,B
 //    bit 0: B = extension of mod/rm or base or opcode
 //    bit 1: X = extension of index register
@@ -480,6 +528,7 @@ struct SFunctionRecord {
    uint32 Start;                                 // Offset of function start
    uint32 End;                                   // Offset of function end
    uint32 Scope;                                 // Scope of function. 0 = inaccessible, 1 = function local, 2 = file local, 4 = public, 8 = weak public, 0x10 = communal, 0x20 = external
+                                                 // 0x10000 means End not known, extend it when you pass End
    uint32 OldSymbolIndex;                        // Old symbol table index
    int operator < (const SFunctionRecord & y) const{// Operator for sorting function table by source address
       return Section < y.Section || (Section == y.Section && Start < y.Start);}
@@ -658,9 +707,11 @@ protected:
    void    StorePrefix(uint32 Category, uint8 Byte);// Store prefix according to category
    void    FindMapEntry();                       // Find entry in opcode maps
    void    FindOperands();                       // Interpret mod/reg/rm and SIB bytes and find operand fields
-   void    SwizTableLookup();                    // Find swizzle table entry for MVEX code
    void    FindOperandTypes();                   // Determine the types of each operand
+   void    FindBroadcast();                      // Find broadcast and offset multiplier for EVEX code
+   void    SwizTableLookup();                    // Find swizzle table entry for MVEX code
    void    FindLabels();                         // Find any labels at current position and next
+   void    CheckForMisplacedLabel();             // Remove any label placed inside function
    void    FindRelocations();                    // Find any relocation sources in this instruction
    void    FindWarnings();                       // Find any reasons for warnings in code
    void    FindErrors();                         // Find any errors in code
@@ -718,7 +769,8 @@ protected:
    void    WriteRMOperand(uint32 Type);          // Write memory or register operand from mod/rm bits of mod/reg/rm byte and possibly SIB byte to OutFile
    void    WriteDREXOperand(uint32 Type);        // Write register operand from dest bits of DREX byte
    void    WriteVEXOperand(uint32 Type, int i);  // Write register operand from VEX.vvvv bits or immediate bits
-   void    WriteOperandAttribute(int i, int isMem);// Write operand attributes and instruction attributes from MVEX sss, e and kkk bits
+   void    WriteOperandAttributeEVEX(int i, int isMem);// Write operand attributes and instruction attributes from EVEX z, LL, b and aaa bits
+   void    WriteOperandAttributeMVEX(int i, int isMem);// Write operand attributes and instruction attributes from MVEX sss, e and kkk bits
    void    WriteImmediateOperand(uint32 Type);   // Write immediate operand or direct jump/call address
    void    WriteOtherOperand(uint32 Type);       // Write other type of operand
    void    WriteRegisterName(uint32 Value, uint32 Type); // Write name of register to OutFile
@@ -752,7 +804,7 @@ protected:
 // Declare tables in opcodes.cpp:
 extern SOpcodeDef OpcodeMap0[256];               // First opcode map
 
-extern SOpcodeDef const * OpcodeStartPageVEX[];  // Entries to opcode maps, indexed by VEX.mmmm bits
+extern uint32 OpcodeStartPageVEX[];              // Entries to opcode maps, indexed by VEX.mmmm bits
 extern SOpcodeDef const * OpcodeStartPageXOP[];  // Entries to opcode maps, indexed by XOP.mmmm bits
 
 extern const uint32 NumOpcodeStartPageVEX;       // Number of entries in OpcodeStartPage
@@ -774,6 +826,8 @@ extern const char * RegisterNamesCR[16];         // Names of control registers
 
 extern SwizSpec const * SwizTables[][2];         // Pointers to swizzle tables
 extern SwizSpec const * SwizRoundTables[][2];    // Pointers to swizzle round tables
+extern const char * EVEXRoundingNames[5];        // Tables of rounding mode names for EVEX
+
 
 // Define constants for special section/segment/group values
 #define ASM_SEGMENT_UNKNOWN    0   // Unknown segment for external symbols

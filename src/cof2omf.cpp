@@ -192,7 +192,7 @@ void CCOF2OMF::MakeSegmentList() {
 void CCOF2OMF::MakeSymbolList() {
    // Make temporary symbol conversion list
    int isym = 0;  // current symbol table entry
-   int jsym = 0;  // auxiliary entry number
+   //int jsym = 0;  // auxiliary entry number
    union {        // Pointer to symbol table
       SCOFF_SymTableEntry * p;  // Normal pointer
       int8 * b;                 // Used for address calculation
@@ -258,7 +258,7 @@ void CCOF2OMF::MakeRelocationsList() {
    uint32 i;                                     // Relocation number in old file
    int j;                                        // Section number of relocation source in old file
    int isym;                                     // Symbol table index in old file
-   int32 * paddend = 0;                          // Pointer to inline addend
+   //int32 * paddend = 0;                          // Pointer to inline addend
    uint32 TargetOldSection;                      // Section number of relocation target in old file
 
    SOMFRelocation NewRel;                        // Entry in RelocationBuffer
@@ -294,9 +294,9 @@ void CCOF2OMF::MakeRelocationsList() {
 
          // Find inline addend
          if (Reloc.p->Type < COFF32_RELOC_SEG12) {
-            paddend = (int32*)(Buf()+SectionHeaderp->PRawData+Reloc.p->VirtualAddress);
+            //paddend = (int32*)(Buf()+SectionHeaderp->PRawData+Reloc.p->VirtualAddress);
          }
-         else paddend = 0;
+         //else paddend = 0;
 
          // Make entry in RelocationBuffer
          // Relocation type
@@ -378,7 +378,7 @@ void CCOF2OMF::MakeLNAMES() {
    // Make first record in output file = Translator header
    ToFile.StartRecord(OMF_THEADR);
    // Remove path from file name and limit length
-   char * ShortName = CLibrary::TruncateMemberName(OutputFileName);
+   char * ShortName = CLibrary::ShortenMemberName(OutputFileName);   
    ToFile.PutString(ShortName);
    ToFile.EndRecord();
 
@@ -617,7 +617,7 @@ relocations with a source address in the current LEDATA record.
       // Search through SectionBuffer for old sections contributing to this segment
       for (OldSection = 0; OldSection < SectionBufferNum; OldSection++) {
 
-         if (SectionBuffer[OldSection].NewNumber == Segment && SectionBuffer[OldSection].Size) {
+         if (SectionBuffer[OldSection].NewNumber == (uint32)Segment && SectionBuffer[OldSection].Size) {
             // This section contributes to Segment. Make LEDATA record(s)
 
             if (SectionBuffer[OldSection].Offset > SegOffset) {
@@ -663,7 +663,7 @@ relocations with a source address in the current LEDATA record.
 
                // Search for last relocation entry
                while (RelLast < NumRelocations) {
-                  if (RelocationBuffer[RelLast].Section != OldSection) {
+                  if (RelocationBuffer[RelLast].Section != (uint32)OldSection) {
                      break; // Reached end of relocations for this section
                   }
                   if (RelocationBuffer[RelLast].SourceOffset >= CutOff + SectOffset) {

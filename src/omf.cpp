@@ -93,7 +93,7 @@ COMF::COMF() {
 
 void COMF::ParseFile() {
    // Parse file buffer
-   uint8  RecordType;                            // Type of current record
+   //uint8  RecordType;                            // Type of current record
    uint32 Checksum;                              // Record checksum
    uint32 ChecksumZero = 0;                      // Count number of records with zero checksum
    SOMFRecordPointer rec;                        // Current record pointer
@@ -110,7 +110,7 @@ void COMF::ParseFile() {
    // Loop through records to set record pointers and store names
    do {
       // Read record
-      RecordType = rec.Type2;                    // First byte of record = type
+      //RecordType = rec.Type2;                    // First byte of record = type
 
       // Compute checksum
       Checksum = 0;  rec.Index = 0;
@@ -414,7 +414,7 @@ void COMF::DumpSegments() {
 
 void COMF::DumpRelocations() {
    // Dump all LEDATA, LIDATA, COMDAT and FIXUPP records
-   uint32 LastDataRecord = 0;          // Index to the data record that relocations refer to
+   //uint32 LastDataRecord = 0;          // Index to the data record that relocations refer to
    uint32 LastDataRecordSize = 0;      // Size of the data record that relocations refer to
    int8 * LastDataRecordPointer = 0;   // Pointer to data in the data record that relocations refer to
    uint32 i;                           // Loop counter
@@ -435,7 +435,7 @@ void COMF::DumpRelocations() {
          Segment = Records[i].GetIndex();             // Read segment and offset
          Offset  = Records[i].GetNumeric();
          Size    = Records[i].End - Records[i].Index; // Calculate size of data
-         LastDataRecord = i;                          // Save for later FIXUPP that refers to this record
+         //LastDataRecord = i;                          // Save for later FIXUPP that refers to this record
          LastDataRecordSize = Size;
          LastDataRecordPointer = Records[i].buffer + Records[i].FileOffset + Records[i].Index;
          if (Segment < 0x4000) {
@@ -454,7 +454,7 @@ void COMF::DumpRelocations() {
          // LIDATA record
          Segment = Records[i].GetIndex();
          Offset  = Records[i].GetNumeric();
-         LastDataRecord = i;
+         //LastDataRecord = i;
          LastDataRecordSize = Records[i].End - Records[i].Index; // Size before expansion of repeat blocks
          LastDataRecordPointer = Records[i].buffer + Records[i].FileOffset + Records[i].Index;
          printf("\n  LIDATA: segment %s, Offset 0x%X, Size ",
