@@ -1132,7 +1132,7 @@ void CDisassembler::CheckRelocationTarget(uint32 IRel, uint32 TargetType, uint32
 
         if (Relocations[IRel].Type & 2) {
             // Address is self-relative
-            if (s.AddressFieldSize && (s.MFlags & 0x100) || s.ImmediateFieldSize) {
+            if ((s.AddressFieldSize && (s.MFlags & 0x100)) || s.ImmediateFieldSize) {
                 // Relative jump or rip-relative address
                 TargetOffset += IEnd - s.AddressField;
                 InlineA      += IEnd - s.AddressField;
@@ -1166,7 +1166,7 @@ void CDisassembler::CheckRelocationTarget(uint32 IRel, uint32 TargetType, uint32
 
     // Choose between Symbols[SymNewI].Type and TargetType the one that has the highest priority
     if ((TargetType & 0xFF) > (Symbols[SymNewI].Type & 0xFF) 
-        || (TargetType+1 & 0xFE) == 0x0C && (Symbols[SymNewI].Type & 0xFF) > 0x0C) {
+        || ((TargetType+1 & 0xFE) == 0x0C && (Symbols[SymNewI].Type & 0xFF) > 0x0C)) {
 
             // No type assigned yet, or new type overrides old type
             Symbols[SymNewI].Type = TargetType;
@@ -2281,7 +2281,7 @@ void CDisassembler::MarkCodeAsDubious() {
     uint32 sym1, sym2 = 0, sym3 = 0;              // Preceding and succeding symbols
 
     // Check likelihood that this is data rather than code
-    if ((s.Errors & 0x4000) && ((s.Warnings1 & 0x10000000) || CountErrors > 1)
+    if (((s.Errors & 0x4000) && ((s.Warnings1 & 0x10000000) || CountErrors > 1))
         || CountErrors > 5) {
             // There are more than 5 errors, or consecutive zeroes and at
             // least one more error or inaccessible code.
