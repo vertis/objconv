@@ -1,7 +1,7 @@
 /****************************    omf.cpp    *********************************
 * Author:        Agner Fog
 * Date created:  2007-01-29
-* Last modified: 2009-07-17
+* Last modified: 2018-05-26
 * Project:       objconv
 * Module:        omf.cpp
 * Description:
@@ -9,7 +9,7 @@
 *
 * Class COMF is used for reading, interpreting and dumping OMF files.
 *
-* Copyright 2007-2009 GNU General Public License http://www.gnu.org/licenses
+* Copyright 2007-2018 GNU General Public License http://www.gnu.org/licenses
 *****************************************************************************/
 #include "stdafx.h"
 
@@ -93,7 +93,7 @@ COMF::COMF() {
 
 void COMF::ParseFile() {
    // Parse file buffer
-   uint8  RecordType;                            // Type of current record
+   //uint8  RecordType;                            // Type of current record
    uint32 Checksum;                              // Record checksum
    uint32 ChecksumZero = 0;                      // Count number of records with zero checksum
    SOMFRecordPointer rec;                        // Current record pointer
@@ -110,7 +110,7 @@ void COMF::ParseFile() {
    // Loop through records to set record pointers and store names
    do {
       // Read record
-      RecordType = rec.Type2;                    // First byte of record = type
+      //RecordType = rec.Type2;                    // First byte of record = type
 
       // Compute checksum
       Checksum = 0;  rec.Index = 0;
@@ -414,7 +414,7 @@ void COMF::DumpSegments() {
 
 void COMF::DumpRelocations() {
    // Dump all LEDATA, LIDATA, COMDAT and FIXUPP records
-   uint32 LastDataRecord = 0;          // Index to the data record that relocations refer to
+   //uint32 LastDataRecord = 0;          // Index to the data record that relocations refer to
    uint32 LastDataRecordSize = 0;      // Size of the data record that relocations refer to
    int8 * LastDataRecordPointer = 0;   // Pointer to data in the data record that relocations refer to
    uint32 i;                           // Loop counter
@@ -435,7 +435,7 @@ void COMF::DumpRelocations() {
          Segment = Records[i].GetIndex();             // Read segment and offset
          Offset  = Records[i].GetNumeric();
          Size    = Records[i].End - Records[i].Index; // Calculate size of data
-         LastDataRecord = i;                          // Save for later FIXUPP that refers to this record
+         //LastDataRecord = i;                          // Save for later FIXUPP that refers to this record
          LastDataRecordSize = Size;
          LastDataRecordPointer = Records[i].buffer + Records[i].FileOffset + Records[i].Index;
          if (Segment < 0x4000) {
@@ -454,7 +454,7 @@ void COMF::DumpRelocations() {
          // LIDATA record
          Segment = Records[i].GetIndex();
          Offset  = Records[i].GetNumeric();
-         LastDataRecord = i;
+         //LastDataRecord = i;
          LastDataRecordSize = Records[i].End - Records[i].Index; // Size before expansion of repeat blocks
          LastDataRecordPointer = Records[i].buffer + Records[i].FileOffset + Records[i].Index;
          printf("\n  LIDATA: segment %s, Offset 0x%X, Size ",
@@ -716,14 +716,13 @@ void COMF::PublicNames(CMemoryBuffer * Strings, CSList<SStringEntry> * Index, in
    while (rec.GetNext());                        // End of loop through records
 }
 
-
 char * COMF::GetLocalName(uint32 i) {
    // Get section name or class name by name index
-   if (i == 0) return (char*)"null";
-   if (i < LocalNameOffset.GetNumEntries()) {
-      return NameBuffer.Buf() + LocalNameOffset[i];
-   }
-   return (char*)"?";
+    if (i == 0 || i >= LocalNameOffset.GetNumEntries())  {
+        i = NameBuffer.PushString("null");
+        return NameBuffer.Buf() + i;
+    }
+    return NameBuffer.Buf() + LocalNameOffset[i];
 }
 
 uint32 COMF::GetLocalNameO(uint32 i) {
@@ -845,7 +844,7 @@ char * SOMFRecordPointer::GetString() {
    // Read string and return as ASCIIZ string in static buffer
    static char String[256];
    uint8 Length = GetByte();
-   if (Length == 0) {
+   if (Length == 0 /*|| Length >= sizeof(String)*/) {
       String[0] = 0;
    }
    else {
@@ -889,7 +888,7 @@ uint8 SOMFRecordPointer::GetNext(uint32 align) {
    Type2 = Type;  if (Type2 < OMF_LIBHEAD) Type2 &= ~1; // Make even
    uint16 RecordSize = GetWord();                // Get record size
    End = Index + RecordSize - 1;                 // Point to checksum byte
-   if (FileOffset + RecordSize + 3 > FileEnd) err.submit(2301); // Extends beyond end of file
+   if ((uint64)FileOffset + RecordSize + 3 > FileEnd) err.submit(2301); // Extends beyond end of file
    return Type2;
 }
 

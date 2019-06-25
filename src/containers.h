@@ -133,6 +133,7 @@ public:
    int WordSize;                                 // Segment word size (16, 32, 64)
    int FileType;                                 // Object file type
    int Executable;                               // File is executable
+   char * SetFileNameExtension(const char * f);  // Set file name extension according to FileType
 protected:
    void GetOMFWordSize();                        // Determine word size for OMF file
    void CheckOutputFileName();                   // Make output file name or check that requested name is valid
@@ -323,7 +324,7 @@ public:
       // Returns the record number if a record equal to x exists in the list.
       // Returns -1 if not. The list must be sorted before calling Exists.
       // Two records a and b are assumed to be equal if !(a < b || b < a)
-      int32 i = FindFirst(x);
+      uint32 i = FindFirst(x);
       if (i == NumEntries) return -1;
       if (x < (*this)[i]) return -1; else return i;
    }

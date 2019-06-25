@@ -113,6 +113,10 @@ void CMain::Go() {
    Read(IgnoreError);                  // Read input file
    GetFileType();                      // Determine file type
    cmd.InputType = FileType;           // Save input file type in cmd for access from other modules
+   if (cmd.OutputType == 0) {
+       // desired type not specified
+       cmd.OutputType = FileType;
+   }
    if (err.Number()) return;           // Return if error
    CheckOutputFileName();              // Construct output file name with default extension
    if (err.Number()) return;

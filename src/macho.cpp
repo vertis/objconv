@@ -77,7 +77,7 @@ SIntTxt Mac32RelocationTypeNames[] = {
    {MAC32_RELOC_VANILLA,        "Generic"},
    {MAC32_RELOC_PAIR,           "Second entry of a pair"},
    {MAC32_RELOC_SECTDIFF,       "Section diff"},
-   {MAC32_RELOC_PB_LA_PTR,      "Prebound lazy ptr"},
+   {MAC32_RELOC_PB_LA_PTR,      "Prebound lazy "},
    {MAC32_RELOC_LOCAL_SECTDIFF, "SectDif local"}
 };
 

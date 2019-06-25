@@ -229,9 +229,9 @@ struct SCOFF_SectionHeader {
  uint32  VirtualSize;    // size of section when loaded. (Should be 0 for object files, but it seems to be accumulated size of all sections)
  uint32  VirtualAddress; // subtracted from offsets during relocation. preferably 0
  uint32  SizeOfRawData;  // section size in file
- uint32  PRawData;       // file ptr to raw data for section
- uint32  PRelocations;   // file ptr to relocation entries
- uint32  PLineNumbers;   // file ptr to line number entries
+ uint32  PRawData;       // file  to raw data for section
+ uint32  PRelocations;   // file  to relocation entries
+ uint32  PLineNumbers;   // file  to line number entries
  uint16  NRelocations;   // number of relocation entries
  uint16  NLineNumbers;   // number of line number entries
  uint32  Flags;          // flags   
@@ -368,13 +368,16 @@ union SCOFF_SymTableEntry {
 // Use SIZE_SCOFF_SymTableEntry instead of sizeof(SCOFF_SymTableEntry)
 #define SIZE_SCOFF_SymTableEntry  18  // Size of SCOFF_SymTableEntry packed
 
+// values of weak.Characteristics
+#define IMAGE_WEAK_EXTERN_SEARCH_NOLIBRARY  1
+#define IMAGE_WEAK_EXTERN_SEARCH_LIBRARY    2
+#define IMAGE_WEAK_EXTERN_SEARCH_ALIAS      3
+
 /*
 #define N_BTMASK (0xf)
 #define N_TMASK  (0x30)
 #define N_BTSHFT (4)
-#define N_TSHIFT (2)
-
-  */
+#define N_TSHIFT (2)  */
 
 //#pragma pack(pop)
 
