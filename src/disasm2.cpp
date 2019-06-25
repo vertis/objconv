@@ -1,7 +1,7 @@
 /****************************  disasm2.cpp   ********************************
 * Author:        Agner Fog
 * Date created:  2007-02-25
-* Last modified: 2012-08-23
+* Last modified: 2016-11-27
 * Project:       objconv
 * Module:        disasm2.cpp
 * Description:
@@ -9,7 +9,7 @@
 *
 * Changes that relate to assembly language syntax should be done in this file only.
 *
-* Copyright 2007-2011 GNU General Public License http://www.gnu.org/licenses
+* Copyright 2007-2016 GNU General Public License http://www.gnu.org/licenses
 *****************************************************************************/
 #include "stdafx.h"
 
@@ -94,10 +94,9 @@ SIntTxt AsmWarningTexts1[] = {
     {0x2000000,  "Bogus length-changing prefix causes delay on Intel processors here"},
     {0x4000000,  "Non-default size for stack operation"},
     {0x8000000,  "Function does not end with ret or jmp"},
-    {0x10000000, "Inaccessible code"},
+    {0x10000000, "No jump seems to point here"},
     {0x20000000, "Full 64-bit address"},
-    {0x40000000, "VEX prefix bits not allowed here"},
-    {0x80000000, "MVEX option bits not allowed here"}
+    {0x40000000, "VEX prefix bits not allowed here"}
 };
 
 // Warning texts 2: Warnings about possible misinterpretation; serious warnings
@@ -105,6 +104,12 @@ SIntTxt AsmWarningTexts2[] = {
     {1,          "Label out of phase with instruction. Possibly spurious"},
     {2,          "Planned future instruction, according to preliminary specification"},
     {4,          "This instruction has been planned but never implemented because plans were changed. Will not work"},
+    {0x10,       "EVEX prefix not allowed for this instruction"},
+    {0x20,       "MVEX prefix not allowed for this instruction"},
+    {0x40,       "EVEX prefix option bits not allowed here"},
+    {0x80,       "MVEX prefix option bits not allowed here"},
+    {0x100,      "Mask register must be nonzero"},
+    {0x200,      "Broadcasting to scalar not allowd"},
 };
 
 
@@ -135,16 +140,33 @@ const char * InstructionSetNames[] = {
     "", "SSE", "SSE2", "SSE3",                       // 10 - 13
     "Supplementary SSE3", "SSE4.1", "SSE4.2", "AES", // 14 - 17
     "CLMUL", "AVX", "FMA3", "?",                     // 18 - 1B
-    "AVX2", "TSX", "?", "?",                         // 1C - 1F
-    "?", "?", "?", "?",                              // 20 - 23
-    "?", "?", "?", "?",                              // 24 - 27
+    "AVX2", "BMI etc.", "?", "?",                    // 1C - 1F
+    "AVX-512", "AVX512PF/ER/CD", "MPX,SHA,TBD", "AVX512IFMA/VBMI", // 20 - 23
+    "AVX512_4FMAPS", "?", "?", "?",                                // 24 - 27
     "?", "?", "?", "?",                              // 28 - 2B
     "?", "?", "?", "?",                              // 2C - 2F
     "?", "?", "?", "?",                              // 30 - 33
     "?", "?", "?", "?",                              // 34 - 37
     "?", "?", "?", "?",                              // 38 - 3B
-    "?", "?", "?", "?",                              // 3C - 1F
-    "Knights corner", "?", "?", "?"                  // 40 - 43
+    "?", "?", "?", "?",                              // 3C - 3F
+    "?", "?", "?", "?",                              // 40 - 43
+    "?", "?", "?", "?",                              // 44 - 47
+    "?", "?", "?", "?",                              // 48 - 4B
+    "?", "?", "?", "?",                              // 4C - 4F
+    "?", "?", "?", "?",                              // 50 - 53
+    "?", "?", "?", "?",                              // 54 - 57
+    "?", "?", "?", "?",                              // 58 - 5B
+    "?", "?", "?", "?",                              // 5C - 5F
+    "?", "?", "?", "?",                              // 60 - 63
+    "?", "?", "?", "?",                              // 64 - 67
+    "?", "?", "?", "?",                              // 68 - 6B
+    "?", "?", "?", "?",                              // 6C - 6F
+    "?", "?", "?", "?",                              // 70 - 73
+    "?", "?", "?", "?",                              // 74 - 77
+    "?", "?", "?", "?",                              // 78 - 7B
+    "?", "?", "?", "?",                              // 7C - 7F
+    "Knights Corner", "?", "?", "?",                 // 80 - 83
+    "?", "?", "?", "?"                               // 84 - 87
 };
 
 const int InstructionSetNamesLen = TableSize(InstructionSetNames);
@@ -240,7 +262,7 @@ void CDisassembler::WriteRMOperand(uint32 Type) {
     if ((s.OpcodeDef->InstructionFormat & 0x1F) == 0x1E) {    
         WriteOperandType(Type & 0xFF);    // has vsib address: write element type rather than vector type
     }
-    else {
+    else if (!(s.OpcodeDef->Options & 0x800)) {
         WriteOperandType(Type);           // write operand type
     }
 
@@ -372,7 +394,7 @@ void CDisassembler::WriteOperandType(uint32 type) {
 }
 
 void CDisassembler::WriteOperandTypeMASM(uint32 type) {
-    // Write type override before operand, e.g. "dword ptr", MASM syntax
+    // Write type override before operand, e.g. "dword ", MASM syntax
     if (type & 0xF00) {
         type &= 0xF00;                             // Ignore element type for vectors
     }
@@ -382,57 +404,62 @@ void CDisassembler::WriteOperandTypeMASM(uint32 type) {
 
     switch (type) {
     case 1:  // 8 bits
-        OutFile.Put("byte ptr ");  break;
+        OutFile.Put("byte ");  break;
     case 2:  // 16 bits
-        OutFile.Put("word ptr ");  break;
+        OutFile.Put("word ");  break;
     case 3:  // 32 bits
-        OutFile.Put("dword ptr ");  break;
+        OutFile.Put("dword ");  break;
     case 4:  // 64 bits
-        OutFile.Put("qword ptr ");  break;
+        OutFile.Put("qword ");  break;
     case 5:  // 80 bits
         if ((s.OpcodeDef->Destination & 0xFF) == 0xD) {
             // 64+16 bit far pointer. Not supported by MASM
-            OutFile.Put("fword ptr ");
+            OutFile.Put("fword ");
             s.OpComment = "64+16 bit. Need REX.W prefix";
         }
         else { 
-            OutFile.Put("tbyte ptr ");}
+            OutFile.Put("tbyte ");}
         break;
     case 6: case 0x40: case 0x48: case 0:
         // Other size. Write nothing
         break;
     case 7: case 0x0D: // 48 bits or far
-        OutFile.Put("fword ptr ");  
+        OutFile.Put("fword ");  
         if ((s.OpcodeDef->Destination & 0xFF) == 0xD && WordSize == 64) {
             // All assemblers I have tried forget the REX.W prefix here. Make a notice
             s.OpComment = "32+16 bit. Possibly forgot REX.W prefix"; 
         }      
         break;
     case 0x4A: // 16 bits float
-        OutFile.Put("word ptr ");  break;
+        OutFile.Put("word ");  break;
     case 0x43: // 32 bits float (x87)
     case 0x4B: // 32 bits float (SSE2)
-        OutFile.Put("dword ptr ");  break;
+        OutFile.Put("dword ");  break;
     case 0x44: // 64 bits float
     case 0x4C: // 64 bits float (SSE2)
-        OutFile.Put("qword ptr ");  break;
+        OutFile.Put("qword ");  break;
     case 0x45: // 80 bits float
-        OutFile.Put("tbyte ptr ");  break;
+        OutFile.Put("tbyte ");  break;
     case 0x84: case 0x85: // far call
-        OutFile.Put("far ptr ");  break;
+        OutFile.Put("far ");  break;
+    case 0x95: // 16 bits mask register
+        OutFile.Put("word ");  break;
     case 0x300:  // MMX
-        OutFile.Put("qword ptr ");  break;
+        OutFile.Put("qword ");  break;
     case 0x400:  // XMM
-        OutFile.Put("xmmword ptr ");  break;
+        OutFile.Put("xmmword ");  break;
     case 0x500:  // YMM
-        OutFile.Put("ymmword ptr ");  break;
+        OutFile.Put("ymmword ");  break;
     case 0x600:  // ZMM
-        OutFile.Put("zmmword ptr ");  break;
+        OutFile.Put("zmmword ");  break;
+    case 0x700:  // future 1024 bit
+        OutFile.Put("?mmword ");  break;
     }
+    OutFile.Put("ptr ");
 }
 
 void CDisassembler::WriteOperandTypeYASM(uint32 type) {
-    // Write type override before operand, e.g. "dword", YASM syntax
+    // Write type override before operand, e.g. "dword", NASM/YASM syntax
     if (type & 0xF00) {
         type &= 0xF00;                             // Ignore element type for vectors
     }
@@ -492,6 +519,8 @@ void CDisassembler::WriteOperandTypeYASM(uint32 type) {
         OutFile.Put("tbyte ");  break;
     case 0x84: case 0x85: // far call
         OutFile.Put("far ");  break;
+    case 0x95: // 16 bits mask register
+        OutFile.Put("word ");  break;
     case 0x300:  // MMX
         OutFile.Put("qword ");  break;
     case 0x400:  // XMM
@@ -500,12 +529,14 @@ void CDisassembler::WriteOperandTypeYASM(uint32 type) {
         OutFile.Put("yword ");  break;
     case 0x600:  // ZMM
         OutFile.Put("zword ");  break;
+    case 0x700:  // Future 128 bytes
+        OutFile.Put("?word ");  break;
     default:; // Anything else: write nothing
     }
 }
 
 void CDisassembler::WriteOperandTypeGASM(uint32 type) {
-    // Write type override before operand, e.g. "dword ptr", GAS syntax
+    // Write type override before operand, e.g. "dword ", GAS syntax
     if (type & 0xF00) {
         type &= 0xF00;                             // Ignore element type for vectors
     }
@@ -513,54 +544,58 @@ void CDisassembler::WriteOperandTypeGASM(uint32 type) {
         type &= 0xFF;                              // Use operand type only
     }
 
-    switch (type & 0xFF) {
+    switch (type) {
     case 1:  // 8 bits
-        OutFile.Put("byte ptr ");  break;
+        OutFile.Put("byte ");  break;
     case 2:  // 16 bits
-        OutFile.Put("word ptr ");  break;
+        OutFile.Put("word ");  break;
     case 3:  // 32 bits
-        OutFile.Put("dword ptr ");  break;
+        OutFile.Put("dword ");  break;
     case 4:  // 64 bits
-        OutFile.Put("qword ptr ");  break;
+        OutFile.Put("qword ");  break;
     case 5:  // 80 bits
         if ((s.OpcodeDef->Destination & 0xFF) == 0xD) {
             // 64+16 bit far pointer. Not supported by Gas
-            OutFile.Put("fword ptr ");
+            OutFile.Put("fword ");
             s.OpComment = "64+16 bit. Needs REX.W prefix";
         }
         else { 
-            OutFile.Put("tbyte ptr ");}
+            OutFile.Put("tbyte ");}
         break;
     case 6: case 0x40: case 0x48: case 0:
         // Other size. Write nothing
         break;
     case 7:    // 48 bits
-        OutFile.Put("fword ptr ");  
+        OutFile.Put("fword ");  
         if ((s.OpcodeDef->Destination & 0xFF) == 0xD && WordSize == 64) {
             // All assemblers I have tried forget the REX.W prefix here. Make a notice
             s.OpComment = "32+16 bit. Possibly forgot REX.W prefix"; 
         }      
         break;
     case 0x4A: // 16 bits float
-        OutFile.Put("word ptr ");  break;
+        OutFile.Put("word ");  break;
     case 0x43: // 32 bits float (x87)
     case 0x4B: // 32 bits float (SSE2)
-        OutFile.Put("dword ptr ");  break;
+        OutFile.Put("dword ");  break;
     case 0x44: // 64 bits float
     case 0x4C: // 64 bits float (SSE2)
-        OutFile.Put("qword ptr ");  break;
+        OutFile.Put("qword ");  break;
     case 0x45: // 80 bits float
-        OutFile.Put("tbyte ptr ");  break;
+        OutFile.Put("tbyte ");  break;
     case 0x84: case 0x85: // far call
-        OutFile.Put("far ptr ");  break;
+        OutFile.Put("far ");  break;
+    case 0x95: // 16 bits mask register
+        OutFile.Put("word ");  break;
     case 0x300:  // MMX
-        OutFile.Put("qword ptr ");  break;
+        OutFile.Put("qword ");  break;
     case 0x400:  // XMM
-        OutFile.Put("xmmword ptr ");  break;
+        OutFile.Put("xmmword ");  break;
     case 0x500:  // YMM
-        OutFile.Put("ymmword ptr ");  break;
+        OutFile.Put("ymmword ");  break;
     case 0x600:  // ZMM
-        OutFile.Put("zmmword ptr ");  break;
+        OutFile.Put("zmmword ");  break;
+    case 0x700:  // future 1024 bit
+        OutFile.Put("?mmword ");  break;
     }
 }
 
@@ -582,17 +617,86 @@ void CDisassembler::WriteVEXOperand(uint32 Type, int i) {
         Num = Get<uint8>(s.ImmediateField) >> 4;  break;
     case 2:  // Use immediate bits 0-3 (Unused. For possible future use)
         Num = Get<uint8>(s.ImmediateField) & 0x0F;  break;
+    default:
+        Num = 0;
     }
     // Write register name
     WriteRegisterName(Num, Type);
 }
 
-void CDisassembler::WriteOperandAttribute(int i, int isMem) {
+
+void CDisassembler::WriteOperandAttributeEVEX(int i, int isMem) {
+    // Write operand attributes and instruction attributes from EVEX z, LL, b and aaa bits
+    // i = operand number (0 = destination, 1 = first source, 2 = second source, 
+    // 98 = after last SIMD operand, 99 = after last operand)
+    // isMem: true if memory operand, false if register operand
+    uint32 swiz = s.OpcodeDef->EVEX;   // indicates meaning of EVEX attribute bits
+
+    if ((swiz & 0x30) && (i == 0 || (s.OpcodeDef->Destination == 0 && i == 1))) {  // first operand
+        // write mask
+        if (s.Kreg || (swiz & 0xC0)) {
+            OutFile.Put(" {k");
+            OutFile.PutDecimal(s.Kreg);
+            OutFile.Put("}");
+            if ((swiz & 0x20) && (s.Esss & 8)) {
+                // zeroing
+                OutFile.Put("{z}");
+            }
+        }
+    }
+    if (swiz & 0x07) {
+        // broadcast, rounding or sae allowed
+        if (isMem && i < 8) {
+            // memory operand
+            if ((swiz & 0x01) && (s.Esss & 1)) {            
+                // write memory broadcast
+                // calculate broadcast factor
+                uint32 op = s.Operands[i];  // operand
+                uint32 elementsize = GetDataElementSize(op); // element size
+                uint32 opv = s.Operands[0];  // any vector operand
+                if (!(opv & 0xF00)) opv = s.Operands[1]; // first operand is not a vector, use next
+                uint32 vectorsize  = GetDataItemSize(opv); // vector size
+                if (vectorsize > elementsize) { // avoid broadcasting to scalar
+                    if (elementsize) { // avoid division by zero
+                        OutFile.Put(" {1to");
+                        OutFile.PutDecimal(vectorsize/elementsize);
+                        OutFile.Put("}");
+                    }
+                    else {
+                        OutFile.Put("{unknown broadcast}");
+                    }
+                }
+            }
+        }
+        if (i == 98 && s.Mod == 3) {   // after last SIMD operand. no memory operand
+            // NASM has rounding mode and sae decoration after last SIMD operand with a comma.
+            // No spec. for other assemblers available yet (2014). 
+            // use i == 99 if it should be placed after last operand.
+            // Perhaps the comma should be removed for other assemblers?
+            if ((swiz & 0x4) && (s.Esss & 1)) {
+                // write rounding mode
+                uint32 rounding = (s.Esss >> 1) & 3;
+                OutFile.Put(", {");
+                OutFile.Put(EVEXRoundingNames[rounding]);
+                OutFile.Put("}");
+            }
+            else if ((swiz & 0x2) && (s.Esss & 1)) {
+                // no rounding mode. write sae
+                OutFile.Put(", {");
+                OutFile.Put(EVEXRoundingNames[4]);
+                OutFile.Put("}");
+            }
+        }
+    }
+}
+
+
+void CDisassembler::WriteOperandAttributeMVEX(int i, int isMem) {
     // Write operand attributes and instruction attributes from MVEX sss, e and kkk bits.
     // i = operand number (0 = destination, 1 = first source, 2 = second source, 99 = after last operand)
     // isMem: true if memory operand, false if register operand
-    uint32 swiz = s.OpcodeDef->Swizzle;   // indicates meaning of MVEX attribute bits
-    const int R_sae_syntax = 1;   // syntax alternatives for rounding mode + sae
+    uint32 swiz = s.OpcodeDef->MVEX;   // indicates meaning of MVEX attribute bits
+    const int R_sae_syntax = 0;   // syntax alternatives for rounding mode + sae
                                   // 0: {rn-sae}, 1: {rn}{sae}
     const char * text = 0;        // temporary text pointer
 
@@ -606,14 +710,15 @@ void CDisassembler::WriteOperandAttribute(int i, int isMem) {
     }
     if (swiz & 0x1F) {
         // swizzle allowed    
-        if (isMem) {
+        if (isMem && i < 90) {
             // write memory broadcast/up/down conversion
             text = s.SwizRecord->name;
             if (text && *text) {
                 OutFile.Put(" {");  OutFile.Put(text);  OutFile.Put("}");
             }
         }
-        if (i == 2 || ((s.OpcodeDef->Source2 & 0xF0F00) == 0 && i == 1)) {
+        //if (i == 2 || ((s.OpcodeDef->Source2 & 0xF0F00) == 0 && i == 1)) {
+        if (i == 98) {   // after last SIMD operand
             // last register or memory operand
             if (s.Mod == 3 && !((swiz & 0x700) && (s.Esss & 8))) { // skip alternative meaning of sss field for register operand when E=1
                 // write register swizzle
@@ -695,8 +800,16 @@ void CDisassembler::WriteRegisterName(uint32 Value, uint32 Type) {
         break;
     }
 
-    // Get value limit
-    uint32 RegNumLimit = WordSize >= 64 ? 15 : 7;
+    // Get register number limit
+    uint32 RegNumLimit = 7;    // largest register number
+    if (WordSize >= 64) {
+        RegNumLimit = 15;
+        if ((s.Prefixes[6] & 0x40) && (Type & 0xF40)) {
+            // EVEX or MVEX prefix and vector
+            RegNumLimit = 31;
+        }
+    }
+
     switch (Type) {
     case 0x91:     // segment register
         RegNumLimit = 5;
@@ -706,9 +819,8 @@ void CDisassembler::WriteRegisterName(uint32 Value, uint32 Type) {
     case 0x95:   // k mask register
         RegNumLimit = 7;
         break;
-    case 0x600:  // zmm register (packed)
-        // There are probably only 7 zmm registers in 32 bit mode, though this is undocumented
-        if (WordSize >= 64) RegNumLimit = 31; else RegNumLimit = 7;
+    case 0x98:   // bounds register
+        RegNumLimit = 3;
         break;
     }
     if (Value > RegNumLimit) {
@@ -735,10 +847,12 @@ void CDisassembler::WriteRegisterName(uint32 Value, uint32 Type) {
             OutFile.Put("mm");  break;
         case 0x400:  // xmm register
             OutFile.Put("xmm");  break;
-        case 0x500:  // xmm register
+        case 0x500:  // ymm register
             OutFile.Put("ymm");  break;
-        case 0x600:  // xmm register
+        case 0x600:  // zmm register
             OutFile.Put("zmm");  break;
+        case 0x700:  // future 1024 bit register
+            OutFile.Put("?mm");  break;
         }
         OutFile.PutDecimal(Value);
     }
@@ -782,6 +896,11 @@ void CDisassembler::WriteRegisterName(uint32 Value, uint32 Type) {
             OutFile.PutDecimal(Value);
             break;
 
+        case 0x700:  // future 1024 bit register
+            OutFile.Put("?mm");
+            OutFile.PutDecimal(Value);
+            break;
+
         case 0x40:  // st register
             if (Syntax == SUBTYPE_YASM) {
                 // NASM, YASM and GAS-AT&T use st0
@@ -819,6 +938,11 @@ void CDisassembler::WriteRegisterName(uint32 Value, uint32 Type) {
             OutFile.PutDecimal(Value);
             break;
 
+        case 0x98:  // bounds register
+            OutFile.Put("bnd");
+            OutFile.PutDecimal(Value);
+            break;
+
         case 0xB1:  // 1
             OutFile.Put("1");
             break;
@@ -843,7 +967,7 @@ void CDisassembler::WriteImmediateOperand(uint32 Type) {
 
     // Check if far
     if ((Type & 0xFE) == 0x84) {
-        // Write far ptr
+        // Write far 
         WriteOperandType(Type);
     }
 
@@ -1153,23 +1277,25 @@ void CDisassembler::WriteErrorsAndWarnings() {
         }
     }
 
-    if (!s.Warnings1 && s.Prefixes[0] && (s.OpcodeDef->AllowedPrefixes & 8)) {
-        // Branch hint prefix. Write comment
-        OutFile.Put(CommentSeparator);             // Write "; "
-        switch (s.Prefixes[0]) {
-        case 0x2E:
-            OutFile.Put("Branch hint prefix for Pentium 4: Predict no jump");   
-            break;
-        case 0x3E:
-            OutFile.Put("Branch hint prefix for Pentium 4: Predict jump");   
-            break;
-        case 0x64:
-            OutFile.Put("Branch hint prefix for Pentium 4: Predict alternate");   
-            break;
-        default:
-            OutFile.Put("Note: Unrecognized branch hint prefix");   
+    if (s.OpcodeDef && (s.OpcodeDef->AllowedPrefixes & 8) && !s.Warnings1) {
+        if (s.Prefixes[0]) {
+            // Branch hint prefix. Write comment
+            OutFile.Put(CommentSeparator);             // Write "; "
+            switch (s.Prefixes[0]) {
+            case 0x2E:
+                OutFile.Put("Branch hint prefix for Pentium 4: Predict no jump");   
+                break;
+            case 0x3E:
+                OutFile.Put("Branch hint prefix for Pentium 4: Predict jump");   
+                break;
+            case 0x64:
+                OutFile.Put("Branch hint prefix for Pentium 4: Predict alternate");   
+                break;
+            default:
+                OutFile.Put("Note: Unrecognized branch hint prefix");   
+            }
+            OutFile.NewLine(); 
         }
-        OutFile.NewLine(); 
     }
 }
 
@@ -1328,7 +1454,7 @@ void CDisassembler::WriteDataItems() {
                 || strlen(Symname) > AsmTab1
                 || sym < sym2 
                 // || (Sections[Section].Type & 0xFF) == 3
-                || (Symbols[sym].Type+1 & 0xFE) == 0x0C);
+                || ((Symbols[sym].Type+1) & 0xFE) == 0x0C);
 
             // Write symbol label
             switch (Syntax) {
@@ -1408,7 +1534,7 @@ void CDisassembler::WriteDataItems() {
             Rel.Section = Section;
             Rel.Offset  = Pos;
             uint32 irel = Relocations.FindFirst(Rel);
-            if (irel >= Relocations.GetNumEntries() || Relocations[irel].Section != Section) {
+            if (irel >= Relocations.GetNumEntries() || Relocations[irel].Section != (int32)Section) {
                 // No relevant relocation
                 irel = 0;
             }
@@ -1439,7 +1565,7 @@ void CDisassembler::WriteDataItems() {
                 }
                 // Check for overlapping relocations
                 if (irel && irel+1 < Relocations.GetNumEntries() 
-                    && Relocations[irel+1].Section == Section
+                    && Relocations[irel+1].Section == (int32)Section
                     && Relocations[irel+1].Offset < RelOffset + ElementSize) {
                         // Overlapping relocations
                         s.Errors |= 0x2000;
@@ -1501,6 +1627,7 @@ void CDisassembler::WriteDataItems() {
             case 6:  Value = Get<uint32>(Pos) + ((uint64)Get<uint16>(Pos+4) << 32); break;
             case 8:  Value = Get<int64>(Pos);  break;
             case 10: Value = Get<int64>(Pos); break;
+            default: Value = 0; // should not occur
             }
             if (irel) {
                 // There is a relocation here. Write the name etc.
@@ -1599,7 +1726,7 @@ void CDisassembler::WriteDataLabelMASM(const char * name, uint32 sym, int line) 
             OutFile.Put("ymmword");  break;
         }
         // Check if jump table or call table
-        if ((Symbols[sym].Type+1 & 0xFE) == 0x0C) {
+        if (((Symbols[sym].Type+1) & 0xFE) == 0x0C) {
             OutFile.Tabulate(AsmTab3);
             OutFile.Put(CommentSeparator);
             if (Symbols[sym].DLLName) {
@@ -1636,7 +1763,7 @@ void CDisassembler::WriteDataLabelYASM(const char * name, uint32 sym, int line) 
         OutFile.Tabulate(AsmTab3);
         OutFile.Put(CommentSeparator);
         // Check if jump table or call table
-        if ((Symbols[sym].Type+1 & 0xFE) == 0x0C) {
+        if (((Symbols[sym].Type+1) & 0xFE) == 0x0C) {
             if (Symbols[sym].DLLName) {
                 // DLL import
                 OutFile.Put("import from ");
@@ -1696,7 +1823,7 @@ void CDisassembler::WriteDataLabelGASM(const char * name, uint32 sym, int line) 
         OutFile.Tabulate(AsmTab3);
         OutFile.Put(CommentSeparator);
         // Check if jump table or call table
-        if ((Symbols[sym].Type+1 & 0xFE) == 0x0C) {
+        if (((Symbols[sym].Type+1) & 0xFE) == 0x0C) {
             if (Symbols[sym].DLLName) {
                 // DLL import
                 OutFile.Put("import from ");
@@ -2248,7 +2375,7 @@ int CDisassembler::WriteFillers() {
     // Write as bytes
     uint32 Pos;
     for (Pos = IFillerBegin; Pos < IFillerEnd; Pos++) {
-        if ((Pos - IFillerBegin & 7) == 0) {
+        if (((Pos - IFillerBegin) & 7) == 0) {
             // Start new line
             OutFile.NewLine();
             OutFile.Put(CommentSeparator);
@@ -2269,7 +2396,7 @@ int CDisassembler::WriteFillers() {
     uint32 Alignment = 4;                         // Limit to 2^4 = 16
 
     // Check if first non-filler is aligned by this value
-    while (Alignment && (IFillerEnd & (1 << Alignment) - 1)) {
+    while (Alignment && (IFillerEnd & ((1 << Alignment) - 1))) {
         // Not aligned by 2^Alignment
         Alignment--;
     }
@@ -2309,6 +2436,8 @@ void CDisassembler::WriteAlign(uint32 a) {
 
 void CDisassembler::WriteFileBegin() {
     // Write begin of file
+
+    OutFile.SetFileType(FILETYPE_ASM);
 
     // Initial comment
     OutFile.Put(CommentSeparator);
@@ -2374,7 +2503,7 @@ void CDisassembler::WriteFileBegin() {
         case 4:  setA = "AMD SSE4a";   break;
         case 5:  setA = "AMD XOP";     break;
         case 6:  setA = "AMD FMA4";    break;
-        case 7:  setA = "AMD CVT16";   break;
+        case 7:  setA = "AMD TBM";   break;
         }
         if (*setA) {
             OutFile.Put(", ");
@@ -3008,7 +3137,9 @@ void CDisassembler::WriteSegmentBeginYASM() {
     case 2: OutFile.Put("data");  break;
     case 3: OutFile.Put("bss");  break;
     case 4: OutFile.Put("const");  break;
-    default: OutFile.Put("unknown");  break;
+    default: OutFile.Put("unknown type: ");  
+        OutFile.PutHex(Sections[Section].Type & 0xFF);        
+        break;
     }
 
     // New line
@@ -3568,7 +3699,12 @@ void CDisassembler::WriteInstruction() {
         }
         OutFile.Tabulate(AsmTab3);                 // Tabulate
         OutFile.Put(CommentSeparator);
-        OutFile.Put("Prefix coded explicitly");    // Comment
+        if ((s.OpcodeDef->AllowedPrefixes & 8) && Get<uint8>(IBegin) == 0xF2) {
+            OutFile.Put("BND prefix coded explicitly");    // Comment
+        }
+        else {        
+            OutFile.Put("Prefix coded explicitly");    // Comment
+        }
         OutFile.NewLine();
     }
 
@@ -3625,15 +3761,38 @@ void CDisassembler::WriteInstruction() {
     // Check suffix option
     if (s.OpcodeDef->Options & 1) {
         // Append suffix for operand size or type to name
-        if ((s.OpcodeDef->AllowedPrefixes & 0x3000) == 0x1000) {
+        if ((s.OpcodeDef->AllowedPrefixes & 0x7000) == 0x1000) {
             // F.P. operand size defined by W prefix bit
             i = s.Prefixes[7] & 8;  // W prefix bit
             OutFile.Put(i ? 'd' : 's');
         }
-        else if ((s.OpcodeDef->AllowedPrefixes & 0x3000) == 0x3000) {
+        else if ((s.OpcodeDef->AllowedPrefixes & 0x7000) == 0x3000) {
+            // Integer or f.p. operand size defined by W prefix bit
+            bool f = false;
+            // Find out if operands are integer or f.p.
+            for (i = 0; i < s.MaxNumOperands; i++) {
+                if ((s.Operands[i] & 0xF0) == 0x40) {
+                    f = true; break;
+                }
+            }
+            i = s.Prefixes[7] & 8;  // W prefix bit
+            if (f) {
+                OutFile.Put(i ? 'd' : 's');  // float precision suffix
+            }
+            else {            
+                OutFile.Put(i ? 'q' : 'd');  // integer size suffix
+            }
+        }
+        else if ((s.OpcodeDef->AllowedPrefixes & 0x7000) == 0x4000) {
             // Integer operand size defined by W prefix bit
             i = s.Prefixes[7] & 8;  // W prefix bit
-            OutFile.Put(i ? 'q' : 'd');
+            OutFile.Put(i ? 'w' : 'b');
+        }
+        else if ((s.OpcodeDef->AllowedPrefixes & 0x7000) == 0x5000) {
+            // mask register operand size defined by W prefix bit and 66 prefix
+            i  = (s.Prefixes[7] & 8) >> 2;      // W prefix bit
+            i |= s.Prefixes[5] != 0x66;         // 66 prefix bit
+            OutFile.Put("bwdq"[i]);
         }
         else if (s.OpcodeDef->AllowedPrefixes & 0xE00) {
             // F.P. operand type and size defined by prefixes
@@ -3660,6 +3819,19 @@ void CDisassembler::WriteInstruction() {
             }
         }
     }
+    // Alternative suffix option
+    if (s.OpcodeDef->Options & 0x1000) {
+        // Append alternative suffix for vector element size to name
+        if ((s.OpcodeDef->AllowedPrefixes & 0x7000) == 0x3000) {
+            // Integer operand size defined by W prefix bit
+            i = ((s.Prefixes[7] & 8) + 8) * 4;  // W prefix bit -> 8 / 16
+            OutFile.PutDecimal(i);
+        }
+        if ((s.OpcodeDef->AllowedPrefixes & 0x7000) == 0x4000) { // 32 / 64
+            i = (s.Prefixes[7] & 8) + 8;  // W prefix bit -> 8 / 16
+            OutFile.PutDecimal(i);
+        }
+    }
     // More suffix option
     if ((s.OpcodeDef->Options & 0x400) && s.ImmediateFieldSize == 8) {
         // 64 bit immediate mov
@@ -3671,7 +3843,7 @@ void CDisassembler::WriteInstruction() {
 
     // Loop for all operands to write
     for (i = 0; i < s.MaxNumOperands; i++) {
-        if (s.Operands[i]) {
+        if (s.Operands[i] & 0xFFFF) {
 
             // Write operand i
             if (NumOperands++) {
@@ -3716,13 +3888,36 @@ void CDisassembler::WriteInstruction() {
             case 0x8:  // Register operand indicated by bits 0-3 of immediate operand
                 WriteVEXOperand(s.Operands[i], 2);  break; // Unused. For future use
             }
-            if (s.Prefixes[3] == 0x62) { // MVEX prefix can have extra operand attributes
-                WriteOperandAttribute(i, optype == 3 && s.Mod != 3);
+            int isMem = optype == 3 && s.Mod != 3;
+            if (s.Prefixes[3] == 0x62) { // EVEX and MVEX prefix can have extra operand attributes
+                if (s.Prefixes[6] & 0x20) {                
+                    WriteOperandAttributeEVEX(i, isMem);
+                }
+                else {
+                    WriteOperandAttributeMVEX(i, isMem);
+                }
+            }
+            if (s.Prefixes[3] == 0x62 && (i == s.MaxNumOperands - 1 || (s.Operands[i+1] & 0xFFF) < 0x40)) {
+                // This is the last SIMD operand
+                if (!(s.Operands[4] & 0x80000000)) {
+                    s.Operands[4] |= 0x80000000;  // Make sure we don't write this twice
+                    if (s.Prefixes[6] & 0x20) {                
+                        WriteOperandAttributeEVEX(98, isMem);
+                    }
+                    else {
+                        WriteOperandAttributeMVEX(98, isMem);
+                    }
+                }
             }
         }
     }
-    if (s.Prefixes[3] == 0x62) { // MVEX prefix can have extra instruction attributes
-        WriteOperandAttribute(99, 0);
+    if (s.Prefixes[3] == 0x62) { // EVEX and MVEX prefix can have extra attributes after operands
+        if (s.Prefixes[6] & 0x20) {                
+            WriteOperandAttributeEVEX(99, 0);
+        }
+        else {
+            WriteOperandAttributeMVEX(99, 0);
+        }
     }
     if (s.OpComment) {
         // Write opcode comment
@@ -3790,6 +3985,8 @@ void CDisassembler::WriteStringInstruction() {
                 PointerRegisterNames = RegisterNames32;  break;
             case 64:
                 PointerRegisterNames = RegisterNames64;  break;
+            default: 
+                PointerRegisterNames = 0;  // should not occur
             }
 
             // Loop for possibly two operands
@@ -3804,13 +4001,13 @@ void CDisassembler::WriteStringInstruction() {
                         // Write operand size for first operand
                         switch (s.OperandSize) {
                         case 8:
-                            OutFile.Put("byte ptr ");  break;
+                            OutFile.Put("byte  ");  break;
                         case 16:
-                            OutFile.Put("word ptr ");  break;
+                            OutFile.Put("word  ");  break;
                         case 32:
-                            OutFile.Put("dword ptr ");  break;
+                            OutFile.Put("dword  ");  break;
                         case 64:
-                            OutFile.Put("qword ptr ");  break;
+                            OutFile.Put("qword  ");  break;
                         }
                     }
                     // Get segment
@@ -3993,7 +4190,9 @@ void CDisassembler::CountInstructions() {
     uint32 AVXinstr  = 0;                         // Number of AVX instructions
     uint32 FMAinstr  = 0;                         // Number of FMA3 and later instructions
     uint32 AVX2instr  = 0;                        // Number of AVX2 instructions
-    uint32 Knightinstr = 0;                       // Number of Knights Corner instructions
+    uint32 BMIinstr  = 0;                         // Number of BMI instructions and other small instruction sets
+    uint32 AVX512instr = 0;                       // Number of AVX-512 instructions
+    uint32 MICinstr = 0;                          // Number of MIC instructions
     uint32 AMDinstr = 0;                          // Number of AMD instructions
     uint32 VIAinstr = 0;                          // Number of AMD instructions
     uint32 privilinstr = 0;                       // Number of privileged instructions
@@ -4061,10 +4260,14 @@ void CDisassembler::CountInstructions() {
                     AVXinstr += n;  break;
                 case 0x1A: case 0x1B:            // FMA and later instructions
                     FMAinstr += n;  break;
-                case 0x1C: case 0x1D: case 0x1E: // AVX2 and later instructions
+                case 0x1C:                       // AVX2 instructions
                     AVX2instr += n; break;
-                case 0x20:                       // Knights corner instructions
-                    Knightinstr += n; break;
+                case 0x1D: case 0x1E:            // BMI and other small instruction sets
+                    BMIinstr += n; break;
+                case 0x20:                       // AVX-512 instructions
+                    AVX512instr += n; break;
+                case 0x80:                       // MIC instructions
+                    MICinstr += n; break;
                 case 0x1001: case 0x1002: case 0x1004: case 0x1005: case 0x1006:  // AMD
                     AMDinstr += n;  break;
                 case 0x2001: // VIA
@@ -4078,21 +4281,55 @@ void CDisassembler::CountInstructions() {
     printf("\n\nNumber of instruction opcodes supported by disassembler:\n%5i Total, including:", 
         instructions);
     printf("\n%5i Privileged instructions", privilinstr);
-    printf("\n%5i MMX  instructions", mmxinstr);
-    printf("\n%5i SSE  instructions", sseinstr);
-    printf("\n%5i SSE2 instructions", sse2instr);
-    printf("\n%5i SSE3 instructions", sse3instr);
-    printf("\n%5i SSSE3 instructions", ssse3instr);
+    printf("\n%5i MMX    instructions", mmxinstr);
+    printf("\n%5i SSE    instructions", sseinstr);
+    printf("\n%5i SSE2   instructions", sse2instr);
+    printf("\n%5i SSE3   instructions", sse3instr);
+    printf("\n%5i SSSE3  instructions", ssse3instr);
     printf("\n%5i SSE4.1 instructions", sse41instr);
     printf("\n%5i SSE4.2 instructions", sse42instr);
-    printf("\n%5i AVX instructions etc.", AVXinstr);
-    printf("\n%5i AVX2 and later instructions", AVX2instr);
-    printf("\n%5i FMA3 instructions", FMAinstr);
-    printf("\n%5i Knights Corner instructions", Knightinstr);
-    printf("\n%5i AMD  instructions", AMDinstr);
-    printf("\n%5i VIA  instructions", VIAinstr);   
+    printf("\n%5i AVX    instructions etc.", AVXinstr);
+    printf("\n%5i AVX2   instructions", AVX2instr);
+    printf("\n%5i FMA3   instructions", FMAinstr);
+    printf("\n%5i BMI/micsellaneous instr.", BMIinstr);
+    printf("\n%5i AVX-512 instructions", AVX512instr);
+    printf("\n%5i MIC/Xeon Phi instructions", MICinstr);
+    printf("\n%5i AMD    instructions", AMDinstr);
+    printf("\n%5i VIA    instructions", VIAinstr);   
     printf("\n%5i instructions planned but never implemented in any CPU", droppedinstr);
     printf("\n%5i undocumented or illegal instructions", undocinstr);
     printf("\n%5i instructions have both VEX and non-VEX versions", VEXdouble);
-    printf("\n");   
+    printf("\n");
+
+#if 0   // temporary test code
+
+    // find entries with 0x2000 prefix code
+    printf("\n\nInstructions with operand swap flag:\n");
+    // Loop through all maps
+    for (map = 0; map < NumOpcodeTables1; map++) {
+        // Loop through each map
+        for (index = 0; index < OpcodeTableLength[map]; index++) {
+            opcode = OpcodeTables[map] + index;
+            if ((opcode->AllowedPrefixes & 0x2000) == 0x2000) {
+                printf("\n%04X %02X  %s", map, index, opcode->Name);
+            }
+        }
+    }
+
+    /*
+    printf("\n\nTables linked by type 0x0E:\n");
+    // Loop through all maps
+    for (map = 0; map < NumOpcodeTables1; map++) {
+        // Loop through each map
+        for (index = 0; index < OpcodeTableLength[map]; index++) {
+            opcode = OpcodeTables[map] + index;
+            if (opcode->TableLink == 0x0E) {
+                printf("  0x%02X", opcode->InstructionSet);
+            }
+        }
+    }*/
+
+    printf("\n");
+
+#endif
 }

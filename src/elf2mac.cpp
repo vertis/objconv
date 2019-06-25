@@ -893,7 +893,7 @@ void CELF2MAC<ELFSTRUCTURES,MACSTRUCTURES>::MakeSections() {
          // Raw data
          NewHeader.size = OldHeader.sh_size;  // section size in file
 
-         // File ptr to raw data for section
+         // File  to raw data for section
          NewHeader.offset = NewRawData.GetDataSize() + RawDataOffset;
 
          if (OldHeader.sh_size && OldHeader.sh_type != SHT_NOBITS) { // Not for .bss segment

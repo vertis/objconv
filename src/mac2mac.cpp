@@ -118,7 +118,7 @@ void CMAC2MAC<MACSTRUCTURES>::MakeSymbolTable() {
          Name1 = Name2;  Name2 = 0;
          break;
 
-      case SYMA_CHANGE_ALIAS: 
+      case SYMA_ALIAS: 
          // Make alias and keep old name
          if (OldScope != 1) {
             err.submit(1022, Name1); break;

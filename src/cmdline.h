@@ -60,7 +60,7 @@
 #define CMDL_UNDERSCORE_CHANGE       1     // Change underscores to default for target
 #define CMDL_UNDERSCORE_REMOVE       2     // Remove underscores from symbol names
 #define CMDL_UNDERSCORE_ADD          3     // Add underscores to symbol names
-#define CMDL_KEEP_ALIAS           0x10     // Keep old name as alias
+#define CMDL_KEEP_ALIAS          0x100     // Keep old name as alias
 
 // Constants for replacing leading dot with underscore or vice versa in section names
 #define CMDL_SECTIONDOT_NOCHANGE     0     // Don't change section names
@@ -96,9 +96,11 @@
 #define SYMA_NOCHANGE                0     // Do nothing
 #define SYMA_MAKE_WEAK               1     // Make symbol weak
 #define SYMA_MAKE_LOCAL              2     // Make symbol local
-#define SYMA_CHANGE_NAME             4     // Change name of symbol
-#define SYMA_CHANGE_PREFIX           8     // Change beginning of symbol name
-#define SYMA_CHANGE_ALIAS         0x14     // Make alias and keep old name
+#define SYMA_CHANGE_NAME          0x10     // Change name of symbol
+#define SYMA_CHANGE_PREFIX        0x11     // Change beginning of symbol name
+#define SYMA_CHANGE_SUFFIX        0x12     // Change end of symbol name
+#define SYMA_ALIAS               0x100     // Make alias of public symbol and keep old name, must be combined 
+                                           // with SYMA_CHANGE_NAME, SYMA_CHANGE_PREFIX or SYMA_CHANGE_SUFFIX
 #define SYMA_ADD_MEMBER         0x1001     // Add member to library
 #define SYMA_DELETE_MEMBER      0x1002     // Remove member from library
 #define SYMA_EXTRACT_MEMBER     0x1004     // Extract member from library
@@ -131,7 +133,7 @@ public:
    char * OutputFile;                        // Output file name
    int    InputType;                         // Input file type (detected from file)
    int    OutputType;                        // Output type (file type or dump)
-   int    SubType;                           // Subtype of output type. Assembly language dialect
+   int    SubType;                           // Subtype of output type. Assembly language dialect or library type
    int    MemberType;                        // File type of library members
    int    DesiredWordSize;                   // Desired word size for output file
    uint32 Verbose;                           // How much diagnostics to print on screen
@@ -141,6 +143,7 @@ public:
    uint32 Underscore;                        // Add/remove underscores in symbol names
    uint32 SegmentDot;                        // Change underscore/dot in beginning of segment names
    uint32 LibraryOptions;                    // Options for manipulating library
+   uint32 LibrarySubtype;                    // Options for manipulating library
    uint32 FileOptions;                       // Options for input and output files
    uint32 ImageBase;                         // Specified image base
    int    ShowHelp;                          // Help screen printed

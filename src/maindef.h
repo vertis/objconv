@@ -1,19 +1,19 @@
 /****************************  maindef.h   **********************************
 * Author:        Agner Fog
 * Date created:  2006-08-26
-* Last modified: 2012-08-23
+* Last modified: 2018-10-08
 * Project:       objconv
 * Module:        maindef.h
 * Description:
 * Header file for type definitions and other main definitions.
 *
-* Copyright 2006-2012 GNU General Public License http://www.gnu.org/licenses
+* Copyright 2006-2018 GNU General Public License http://www.gnu.org/licenses
 *****************************************************************************/
 #ifndef MAINDEF_H
 #define MAINDEF_H
 
 // Program version
-#define OBJCONV_VERSION         2.16
+#define OBJCONV_VERSION         2.51
 
 
 // Integer type definitions with platform-independent sizes:
@@ -89,6 +89,12 @@ static inline uint32 HighDWord (uint64 x) {
 #define FILETYPE_LIBRARY      0x1000         // UNIX-style library/archive
 #define FILETYPE_OMFLIBRARY   0x2000         // OMF-style  library
 
+// Library subtypes
+#define LIBTYPE_OMF             0x01         // OMF library
+#define LIBTYPE_SHORTNAMES      0x10         // Short member names only, compatible with all systems
+#define LIBTYPE_WINDOWS         0x11         // Long member names in "//" member, terminated by 0
+#define LIBTYPE_LINUX           0x12         // Long member names in "//" member, terminated by '/'+LF
+#define LIBTYPE_BSD_MAC         0x13         // Long member name after header. Length indicated by #1/<length>
 
 // Define constants for symbol scope
 #define S_LOCAL     0                        // Local symbol. Accessed only internally
@@ -97,20 +103,20 @@ static inline uint32 HighDWord (uint64 x) {
 
 
 // Macro to calculate the size of an array
-#define TableSize(x) (sizeof(x)/sizeof(x[0]))
+#define TableSize(x) ((int)(sizeof(x)/sizeof(x[0])))
 
 
 // Structures and functions used for lookup tables:
 
 // Structure of integers and char *, used for tables of text strings
 struct SIntTxt {
-   int a;
+   uint32 a;
    const char * b;
 };
 
 // Translate integer value to text string by looking up in table of SIntTxt.
 // Parameters: p = table, n = length of table, x = value to find in table
-static inline char const * LookupText(SIntTxt const * p, int n, int x) {
+static inline char const * LookupText(SIntTxt const * p, int n, uint32 x) {
    for (int i=0; i<n; i++, p++) {
       if (p->a == x) return p->b;
    }

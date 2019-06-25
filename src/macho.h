@@ -579,7 +579,7 @@ struct MAC_scattered_relocation_info {
 #define MAC32_RELOC_PAIR           1   // The second relocation entry of a pair. Only follows a GENERIC_RELOC_SECTDIFF
 #define MAC32_RELOC_SECTDIFF       2   // A relocation entry for an item that contains the difference of
                                        // two section addresses. This is generally used for position-independent code generation.
-#define MAC32_RELOC_PB_LA_PTR      3   // PTR—Arelocation entry for a prebound lazy pointer. This is always
+#define MAC32_RELOC_PB_LA_PTR      3   // —Arelocation entry for a prebound lazy pointer. This is always
                                        // a scattered relocation entry. The r_value field contains the non-prebound value of the lazy pointer.
 #define MAC32_RELOC_LOCAL_SECTDIFF 4   // SECTDIFF—Similar to GENERIC_RELOC_SECTDIFF except that this entry refers specifically to the address in this item. 
                                        // If the address is that of a globally visible coalesced symbol, this relocation entry does not change if the symbol is overridden. 

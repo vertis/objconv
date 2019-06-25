@@ -139,7 +139,7 @@ void CCOF2COF::MakeSymbolTable() {
          }
          break;
 
-      case SYMA_CHANGE_ALIAS: {
+      case SYMA_ALIAS: {
          // Make alias and keep old name
          SCOFF_SymTableEntry AliasEntry = *OldSymtab.p;
          AliasEntry.s.Type = 0;  // Make alias a label, not a function
